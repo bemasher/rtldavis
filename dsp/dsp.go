@@ -47,15 +47,6 @@ func (l *ByteToCmplxLUT) Execute(in []byte, out []complex128) {
 
 func RotateFs4(in, out []complex128) {
 	for idx := 0; idx < len(out); idx += 4 {
-		out[idx] = in[idx]
-		out[idx+1] = complex(-imag(in[idx+1]), real(in[idx+1]))
-		out[idx+2] = complex(-real(in[idx+2]), -imag(in[idx+2]))
-		out[idx+3] = complex(imag(in[idx+3]), -real(in[idx+3]))
-	}
-}
-
-func RotateFs4Opt(in, out []complex128) {
-	for idx := 0; idx < len(out); idx += 4 {
 		inAt := in[idx:]
 		o0 := inAt[0]
 		i1 := inAt[1]
@@ -243,13 +234,31 @@ type Demodulator struct {
 	lut ByteToCmplxLUT
 }
 
+func (d *Demodulator) Reset() {
+	for idx := range d.Raw {
+		d.Raw[idx] = 0
+	}
+	for idx := range d.IQ {
+		d.IQ[idx] = 0
+	}
+	for idx := range d.Filtered {
+		d.Filtered[idx] = 0
+	}
+	for idx := range d.Discriminated {
+		d.Discriminated[idx] = 0
+	}
+	for idx := range d.Quantized {
+		d.Quantized[idx] = 0
+	}
+}
+
 func NewDemodulator(cfg PacketConfig) (d Demodulator) {
 	d.Cfg = cfg
 
 	d.Raw = make([]byte, d.Cfg.BlockSize<<2)
-	d.IQ = make([]complex128, d.Cfg.BlockSize<<1)
-	d.Filtered = make([]complex128, d.Cfg.BlockSize<<1)
-	d.Discriminated = make([]float64, d.Cfg.BlockSize<<1-1)
+	d.IQ = make([]complex128, d.Cfg.BlockSize+9)
+	d.Filtered = make([]complex128, d.Cfg.BlockSize)
+	d.Discriminated = make([]float64, d.Cfg.BlockSize-1)
 	d.Quantized = make([]byte, d.Cfg.BlockSize<<1)
 
 	d.slices = make([][]byte, d.Cfg.SymbolLength)
@@ -271,18 +280,18 @@ func NewDemodulator(cfg PacketConfig) (d Demodulator) {
 
 func (d *Demodulator) Demodulate(input []byte) [][]byte {
 	copy(d.Raw, d.Raw[d.Cfg.BlockSize<<1:])
+	// Only need the last filter-length worth of samples.
+	// d.IQ is BlockSize + 9 for our case.
 	copy(d.IQ, d.IQ[d.Cfg.BlockSize:])
-	copy(d.Filtered, d.Filtered[d.Cfg.BlockSize:])
-	copy(d.Discriminated, d.Discriminated[d.Cfg.BlockSize:])
 	copy(d.Quantized, d.Quantized[d.Cfg.BlockSize:])
 
 	copy(d.Raw[d.Cfg.BlockSize<<1:], input)
 
-	d.lut.Execute(d.Raw[d.Cfg.BlockSize<<1:], d.IQ[d.Cfg.BlockSize:])
-	RotateFs4Opt(d.IQ[d.Cfg.BlockSize:], d.IQ[d.Cfg.BlockSize:])
-	FIR9(d.IQ[d.Cfg.BlockSize-9:], d.Filtered[d.Cfg.BlockSize:])
-	Discriminate(d.Filtered[d.Cfg.BlockSize:], d.Discriminated[d.Cfg.BlockSize:])
-	Quantize(d.Discriminated[d.Cfg.BlockSize:], d.Quantized[d.Cfg.BlockSize:])
+	d.lut.Execute(d.Raw[d.Cfg.BlockSize<<1:], d.IQ[9:])
+	RotateFs4(d.IQ[9:], d.IQ[9:])
+	FIR9(d.IQ, d.Filtered)
+	Discriminate(d.Filtered, d.Discriminated)
+	Quantize(d.Discriminated, d.Quantized[d.Cfg.BlockSize:])
 	d.Pack(d.Quantized[:d.Cfg.BlockSize], d.slices)
 	return d.Slice(d.Search())
 }
