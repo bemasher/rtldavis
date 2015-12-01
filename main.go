@@ -46,7 +46,6 @@ func main() {
 	if err := dev.SetCenterFreq(ch); err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("Channel: %d\n", ch)
 
 	if err := dev.SetSampleRate(fs); err != nil {
 		log.Fatal(err)
@@ -60,7 +59,18 @@ func main() {
 
 	go dev.ReadAsync(func(buf []byte) {
 		out.Write(buf)
-	}, nil, 1, 16384)
+	}, nil, 1, p.Cfg().BlockSize2)
+
+	// Handle frequency hops concurrently since the callback will stall if
+	// we stop reading to hop.
+	nextChannel := make(chan int)
+	go func() {
+		for ch := range nextChannel {
+			if err := dev.SetCenterFreq(ch); err != nil {
+				log.Fatal(err)
+			}
+		}
+	}()
 
 	defer func() {
 		in.Close()
@@ -89,14 +99,7 @@ func main() {
 			}
 
 			if recvPacket {
-				ch := p.NextChannel()
-				if err := dev.SetCenterFreq(ch); err != nil {
-					log.Fatal(err)
-				}
-				log.Printf("Channel: %d\n", ch)
-
-				dev.ResetBuffer()
-				p.Reset()
+				nextChannel <- p.NextChannel()
 			}
 		}
 	}
