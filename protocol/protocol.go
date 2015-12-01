@@ -20,6 +20,7 @@ package protocol
 import (
 	"fmt"
 	"log"
+	"math/rand"
 
 	"github.com/bemasher/rtlamr/crc"
 	"github.com/bemasher/rtldavis/dsp"
@@ -27,7 +28,6 @@ import (
 
 func NewPacketConfig(symbolLength int) (cfg dsp.PacketConfig) {
 	return dsp.NewPacketConfig(
-		0,
 		19200,
 		14,
 		16,
@@ -64,6 +64,7 @@ func NewParser(symbolLength int) (p Parser) {
 	}
 	p.channelCount = len(p.channels)
 
+	p.hopIdx = rand.Intn(p.channelCount)
 	p.hopPattern = []int{
 		0, 19, 41, 25, 8, 47, 32, 13, 36, 22, 3, 29, 44, 16, 5, 27, 38, 10,
 		49, 21, 2, 30, 42, 14, 48, 7, 24, 34, 45, 1, 17, 39, 26, 9, 31, 50,
@@ -78,7 +79,7 @@ func (p Parser) Cfg() dsp.PacketConfig {
 }
 
 func (p *Parser) NextChannel() int {
-	p.hopIdx = (p.hopIdx + 1) % (p.channelCount - 1)
+	p.hopIdx = (p.hopIdx + 1) % (p.channelCount - 2)
 	log.Printf("Channel: %2d %d\n", p.hopPattern[p.hopIdx], p.channels[p.hopPattern[p.hopIdx]])
 	return p.channels[p.hopPattern[p.hopIdx]]
 }

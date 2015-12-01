@@ -20,8 +20,10 @@ package main
 import (
 	"io"
 	"log"
+	"math/rand"
 	"os"
 	"os/signal"
+	"time"
 
 	"github.com/bemasher/rtldavis/protocol"
 	"github.com/jpoirier/gortlsdr"
@@ -29,6 +31,7 @@ import (
 
 func init() {
 	log.SetFlags(log.Lshortfile | log.Lmicroseconds)
+	rand.Seed(time.Now().UnixNano())
 }
 
 func main() {
@@ -42,8 +45,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	ch := p.NextChannel()
-	if err := dev.SetCenterFreq(ch); err != nil {
+	if err := dev.SetCenterFreq(p.NextChannel()); err != nil {
 		log.Fatal(err)
 	}
 

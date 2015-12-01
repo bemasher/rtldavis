@@ -155,7 +155,6 @@ func (d *Demodulator) Slice(indices []int) (pkts [][]byte) {
 
 // PacketConfig specifies packet-specific radio configuration.
 type PacketConfig struct {
-	CenterFreq                     uint32
 	BitRate                        int
 	SymbolLength                   int
 	PreambleSymbols, PacketSymbols int
@@ -169,7 +168,7 @@ type PacketConfig struct {
 	BufferLength                 int
 }
 
-func NewPacketConfig(centerFreq uint32, bitRate, symbolLength, preambleSymbols, packetSymbols int, preamble string) PacketConfig {
+func NewPacketConfig(bitRate, symbolLength, preambleSymbols, packetSymbols int, preamble string) PacketConfig {
 	var cfg PacketConfig
 
 	cfg.BitRate = bitRate
@@ -190,8 +189,6 @@ func NewPacketConfig(centerFreq uint32, bitRate, symbolLength, preambleSymbols, 
 		}
 	}
 
-	cfg.CenterFreq = centerFreq
-
 	cfg.SampleRate = cfg.BitRate * cfg.SymbolLength
 
 	cfg.BlockSize = 2048
@@ -206,7 +203,6 @@ func NewPacketConfig(centerFreq uint32, bitRate, symbolLength, preambleSymbols, 
 }
 
 func (cfg PacketConfig) Log() {
-	log.Println("CenterFreq:", cfg.CenterFreq)
 	log.Println("BitRate:", cfg.BitRate)
 	log.Println("SymbolLength:", cfg.SymbolLength)
 	log.Println("SampleRate:", cfg.SampleRate)
