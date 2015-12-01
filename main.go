@@ -36,16 +36,17 @@ func main() {
 	p.Cfg().Log()
 
 	fs := p.Cfg().SampleRate
-	fc := int(p.Cfg().CenterFreq)
 
 	dev, err := rtlsdr.Open(0)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	if err := dev.SetCenterFreq(fc); err != nil {
+	ch := p.NextChannel()
+	if err := dev.SetCenterFreq(ch); err != nil {
 		log.Fatal(err)
 	}
+	log.Printf("Channel: %d\n", ch)
 
 	if err := dev.SetSampleRate(fs); err != nil {
 		log.Fatal(err)
@@ -81,8 +82,21 @@ func main() {
 		default:
 			in.Read(block)
 
+			recvPacket := false
 			for _, msg := range p.Parse(p.Demodulate(block)) {
+				recvPacket = true
 				log.Printf("%02X\n", msg.Data)
+			}
+
+			if recvPacket {
+				ch := p.NextChannel()
+				if err := dev.SetCenterFreq(ch); err != nil {
+					log.Fatal(err)
+				}
+				log.Printf("Channel: %d\n", ch)
+
+				dev.ResetBuffer()
+				p.Reset()
 			}
 		}
 	}

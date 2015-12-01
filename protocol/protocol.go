@@ -19,6 +19,7 @@ package protocol
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/bemasher/rtlamr/crc"
 	"github.com/bemasher/rtldavis/dsp"
@@ -26,7 +27,7 @@ import (
 
 func NewPacketConfig(symbolLength int) (cfg dsp.PacketConfig) {
 	return dsp.NewPacketConfig(
-		902355835,
+		0,
 		19200,
 		14,
 		16,
@@ -38,16 +39,48 @@ func NewPacketConfig(symbolLength int) (cfg dsp.PacketConfig) {
 type Parser struct {
 	dsp.Demodulator
 	crc.CRC
+
+	channelCount int
+	channels     []int
+
+	hopIdx     int
+	hopPattern []int
 }
 
 func NewParser(symbolLength int) (p Parser) {
 	p.Demodulator = dsp.NewDemodulator(NewPacketConfig(symbolLength))
 	p.CRC = crc.NewCRC("CCITT-16", 0, 0x1021, 0)
+
+	p.channels = []int{
+		902355835, 902857585, 903359336, 903861086, 904362837, 904864587,
+		905366338, 905868088, 906369839, 906871589, 907373340, 907875090,
+		908376841, 908878591, 909380342, 909882092, 910383843, 910885593,
+		911387344, 911889094, 912390845, 912892595, 913394346, 913896096,
+		914397847, 914899597, 915401347, 915903098, 916404848, 916906599,
+		917408349, 917910100, 918411850, 918913601, 919415351, 919917102,
+		920418852, 920920603, 921422353, 921924104, 922425854, 922927605,
+		923429355, 923931106, 924432856, 924934607, 925436357, 925938108,
+		926439858, 926941609, 927443359,
+	}
+	p.channelCount = len(p.channels)
+
+	p.hopPattern = []int{
+		0, 19, 41, 25, 8, 47, 32, 13, 36, 22, 3, 29, 44, 16, 5, 27, 38, 10,
+		49, 21, 2, 30, 42, 14, 48, 7, 24, 34, 45, 1, 17, 39, 26, 9, 31, 50,
+		37, 12, 20, 33, 4, 43, 28, 15, 35, 6, 40, 11, 23, 46, 18,
+	}
+
 	return
 }
 
 func (p Parser) Cfg() dsp.PacketConfig {
 	return p.Demodulator.Cfg
+}
+
+func (p *Parser) NextChannel() int {
+	p.hopIdx = (p.hopIdx + 1) % (p.channelCount - 1)
+	log.Printf("Channel: %2d %d\n", p.hopPattern[p.hopIdx], p.channels[p.hopPattern[p.hopIdx]])
+	return p.channels[p.hopPattern[p.hopIdx]]
 }
 
 func (p Parser) Parse(pkts [][]byte) (msgs []Message) {
