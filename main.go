@@ -148,6 +148,21 @@ func main() {
 			}
 
 			if recvPacket {
+				// Increment this channel and decrement all others in this hop.
+				pattern[patternIdx][channelIdx]++
+				for ch := range pattern[patternIdx] {
+					if ch != channelIdx {
+						pattern[patternIdx][ch]--
+					}
+				}
+
+				// Prune bad channels from the pattern.
+				for ch, count := range pattern[patternIdx] {
+					if count <= 0 {
+						delete(pattern[patternIdx], ch)
+					}
+				}
+
 				// Can't calculate hop offset if we don't have a previous message time.
 				if !last.IsZero() {
 					// Get time since last message.
@@ -158,13 +173,6 @@ func main() {
 
 					// Figure out where we are in the pattern relative to the last hop.
 					patternIdx = (patternIdx + int(math.Floor(offset+0.5))) % p.ChannelCount
-					// Increment this channel and decrement all others in this hop.
-					pattern[patternIdx][channelIdx]++
-					for ch := range pattern[patternIdx] {
-						if ch != channelIdx {
-							pattern[patternIdx][ch]--
-						}
-					}
 				}
 				last = time.Now()
 
