@@ -152,7 +152,7 @@ func main() {
 					timeDiff := time.Since(last)
 					// Get channel offset based on dwelltime per channel.
 					offset := float64(timeDiff) / float64(dwellTime)
-					log.Println(offset)
+					log.Printf("%2d %0.3f\n", int(math.Floor(offset+0.5)), offset)
 
 					// Figure out where we are in the pattern relative to the last hop.
 					patternIdx = (patternIdx + int(math.Floor(offset+0.5))) % p.ChannelCount
