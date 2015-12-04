@@ -71,11 +71,11 @@ func main() {
 		log.Fatal(err)
 	}
 
-	ch := rand.Intn(p.ChannelCount)
-	if err := dev.SetCenterFreq(p.Channels[ch]); err != nil {
+	channelIdx := rand.Intn(p.ChannelCount)
+	if err := dev.SetCenterFreq(p.Channels[channelIdx]); err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("Channel: %2d %d\n", ch, p.Channels[ch])
+	log.Printf("Channel: %2d %d\n", channelIdx, p.Channels[channelIdx])
 
 	if err := dev.SetSampleRate(fs); err != nil {
 		log.Fatal(err)
@@ -125,8 +125,6 @@ func main() {
 
 	var (
 		last time.Time
-
-		channelIdx int
 
 		patternIdx int
 		pattern    HopPattern
