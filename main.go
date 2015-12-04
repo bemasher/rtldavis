@@ -159,10 +159,9 @@ func main() {
 					// Figure out where we are in the pattern relative to the last hop.
 					patternIdx = (patternIdx + int(math.Floor(offset+0.5))) % p.ChannelCount
 					// Increment this channel and decrement all others in this hop.
+					pattern[patternIdx][ch]++
 					for ch := range pattern[patternIdx] {
-						if ch == channelIdx {
-							pattern[patternIdx][ch]++
-						} else {
+						if ch != channelIdx {
 							pattern[patternIdx][ch]--
 						}
 					}
