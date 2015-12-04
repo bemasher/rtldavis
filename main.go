@@ -148,6 +148,19 @@ func main() {
 			}
 
 			if recvPacket {
+				// Can't calculate hop offset if we don't have a previous message time.
+				if !last.IsZero() {
+					// Get time since last message.
+					timeDiff := time.Since(last)
+					// Get channel offset based on dwelltime per channel.
+					offset := float64(timeDiff) / float64(dwellTime)
+					log.Println(offset)
+
+					// Figure out where we are in the pattern relative to the last hop.
+					patternIdx = (patternIdx + int(math.Floor(offset+0.5))) % p.ChannelCount
+				}
+				last = time.Now()
+
 				// Increment this channel and decrement all others in this hop.
 				pattern[patternIdx][channelIdx]++
 				for ch := range pattern[patternIdx] {
@@ -162,19 +175,6 @@ func main() {
 						delete(pattern[patternIdx], ch)
 					}
 				}
-
-				// Can't calculate hop offset if we don't have a previous message time.
-				if !last.IsZero() {
-					// Get time since last message.
-					timeDiff := time.Since(last)
-					// Get channel offset based on dwelltime per channel.
-					offset := float64(timeDiff) / float64(dwellTime)
-					log.Println(offset)
-
-					// Figure out where we are in the pattern relative to the last hop.
-					patternIdx = (patternIdx + int(math.Floor(offset+0.5))) % p.ChannelCount
-				}
-				last = time.Now()
 
 				// If the next hop in the pattern has been previously visited,
 				// hop to the most visited channel on that hop instead of a random channel.
