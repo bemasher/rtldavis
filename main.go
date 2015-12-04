@@ -71,7 +71,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	channelIdx := rand.Intn(p.ChannelCount)
+	channelIdx := 0
 	if err := dev.SetCenterFreq(p.Channels[channelIdx]); err != nil {
 		log.Fatal(err)
 	}
