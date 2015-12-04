@@ -46,9 +46,11 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err := dev.SetCenterFreq(p.NextChannel()); err != nil {
+	ch := rand.Intn(p.ChannelCount)
+	if err := dev.SetCenterFreq(p.Channels[ch]); err != nil {
 		log.Fatal(err)
 	}
+	log.Printf("Channel: %2d %d\n", ch, p.Channels[ch])
 
 	if err := dev.SetSampleRate(fs); err != nil {
 		log.Fatal(err)
@@ -142,6 +144,7 @@ func main() {
 				// Get a new random channel and go there.
 				channelIdx := rand.Intn(p.ChannelCount)
 				nextChannel <- p.Channels[channelIdx]
+				log.Printf("%#v\n", pattern)
 			}
 		}
 	}
