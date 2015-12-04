@@ -169,7 +169,7 @@ func main() {
 
 				// Prune bad channels from the pattern.
 				for ch, count := range pattern[patternIdx] {
-					if count <= 0 {
+					if count < 0 {
 						delete(pattern[patternIdx], ch)
 					}
 				}
