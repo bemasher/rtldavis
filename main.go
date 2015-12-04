@@ -20,6 +20,7 @@ package main
 import (
 	"io"
 	"log"
+	"math"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -50,6 +51,10 @@ func main() {
 	}
 
 	if err := dev.SetSampleRate(fs); err != nil {
+		log.Fatal(err)
+	}
+
+	if err := dev.SetTunerGainMode(false); err != nil {
 		log.Fatal(err)
 	}
 
@@ -87,6 +92,24 @@ func main() {
 
 	block := make([]byte, p.Cfg().BlockSize2)
 
+	const (
+		dwellTime = 2500 * time.Millisecond
+	)
+
+	var (
+		last time.Time
+
+		channelIdx int
+
+		patternIdx int
+		pattern    []map[int]int
+	)
+
+	pattern = make([]map[int]int, p.ChannelCount)
+	for idx := range pattern {
+		pattern[idx] = make(map[int]int)
+	}
+
 	for {
 		select {
 		case <-sig:
@@ -101,7 +124,24 @@ func main() {
 			}
 
 			if recvPacket {
-				nextChannel <- p.NextChannel()
+				// Can't calculate hop offset if we don't have a previous message time.
+				if !last.IsZero() {
+					// Get time since last message.
+					timeDiff := time.Since(last)
+					// Get channel offset based on dwelltime per channel.
+					offset := float64(timeDiff) / float64(dwellTime)
+					log.Println(offset)
+
+					// Figure out where we are in the pattern relative to the last hop.
+					patternIdx = (patternIdx + int(math.Floor(offset+0.5))) % p.ChannelCount
+					// Increment this channel for the offset in the pattern.
+					pattern[patternIdx][channelIdx]++
+				}
+				last = time.Now()
+
+				// Get a new random channel and go there.
+				channelIdx := rand.Intn(p.ChannelCount)
+				nextChannel <- p.Channels[channelIdx]
 			}
 		}
 	}
