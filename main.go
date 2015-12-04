@@ -18,17 +18,42 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"math"
 	"math/rand"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
 	"github.com/bemasher/rtldavis/protocol"
 	"github.com/jpoirier/gortlsdr"
 )
+
+type HopPattern []map[int]int
+
+func NewHopPattern(n int) HopPattern {
+	h := make(HopPattern, n)
+	for idx := range h {
+		h[idx] = make(map[int]int)
+	}
+	return h
+}
+
+func (h HopPattern) String() string {
+	var elements []string
+	for _, hop := range h {
+		var hopElements []string
+		for channel, count := range hop {
+			hopElements = append(hopElements, fmt.Sprintf("%v:%v", channel, count))
+		}
+		elements = append(elements, "["+strings.Join(hopElements, ",")+"]")
+	}
+
+	return "[" + strings.Join(elements, " ") + "]"
+}
 
 func init() {
 	log.SetFlags(log.Lshortfile | log.Lmicroseconds)
@@ -104,13 +129,10 @@ func main() {
 		channelIdx int
 
 		patternIdx int
-		pattern    []map[int]int
+		pattern    HopPattern
 	)
 
-	pattern = make([]map[int]int, p.ChannelCount)
-	for idx := range pattern {
-		pattern[idx] = make(map[int]int)
-	}
+	pattern = NewHopPattern(p.ChannelCount)
 
 	for {
 		select {
@@ -136,13 +158,31 @@ func main() {
 
 					// Figure out where we are in the pattern relative to the last hop.
 					patternIdx = (patternIdx + int(math.Floor(offset+0.5))) % p.ChannelCount
-					// Increment this channel for the offset in the pattern.
-					pattern[patternIdx][channelIdx]++
+					// Increment this channel and decrement all others in this hop.
+					for ch := range pattern[patternIdx] {
+						if ch == channelIdx {
+							pattern[patternIdx][ch]++
+						} else {
+							pattern[patternIdx][ch]--
+						}
+					}
 				}
 				last = time.Now()
 
-				// Get a new random channel and go there.
-				channelIdx = rand.Intn(p.ChannelCount)
+				// If the next hop in the pattern has been previously visited,
+				// hop to the most visited channel on that hop instead of a random channel.
+				nextPatternIdx := (patternIdx + 1) % p.ChannelCount
+				if hop := pattern[nextPatternIdx]; len(hop) != 0 {
+					max := ^int(^uint(0) >> 1)
+					for ch, count := range hop {
+						if max < count {
+							max = count
+							channelIdx = ch
+						}
+					}
+				} else {
+					channelIdx = rand.Intn(p.ChannelCount)
+				}
 				nextChannel <- p.Channels[channelIdx]
 				log.Println(pattern)
 				log.Printf("Channel: %2d %d\n", channelIdx, p.Channels[channelIdx])
