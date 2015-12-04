@@ -95,7 +95,7 @@ func main() {
 	block := make([]byte, p.Cfg().BlockSize2)
 
 	const (
-		dwellTime = 2500 * time.Millisecond
+		dwellTime = 2562500 * time.Microsecond
 	)
 
 	var (
@@ -142,9 +142,10 @@ func main() {
 				last = time.Now()
 
 				// Get a new random channel and go there.
-				channelIdx := rand.Intn(p.ChannelCount)
+				channelIdx = rand.Intn(p.ChannelCount)
 				nextChannel <- p.Channels[channelIdx]
-				log.Printf("%#v\n", pattern)
+				log.Println(pattern)
+				log.Printf("Channel: %2d %d\n", channelIdx, p.Channels[channelIdx])
 			}
 		}
 	}
