@@ -95,7 +95,7 @@ func main() {
 
 	// Handle frequency hops concurrently since the callback will stall if
 	// we stop reading to hop.
-	nextChannel := make(chan int)
+	nextChannel := make(chan int, 1)
 	go func() {
 		for ch := range nextChannel {
 			if err := dev.SetCenterFreq(ch); err != nil {
@@ -128,14 +128,16 @@ func main() {
 			return
 		case <-dwellTimer:
 			if missed {
+				// Missed last hop, reset dwellTimer to p.DwellTime, we're
+				// half of p.DwellTime offset, message should occur in the
+				// middle of our current.
 				dwellTimer = time.After(p.DwellTime)
 			}
 			missed = true
 			missCount++
 			if missCount >= 3 {
 				// We've missed three channels in a row, park on a random one
-				// until we receive another message before we start hopping
-				// again.
+				// until we receive another message before hopping again.
 				nextChannel <- p.RandChannel()
 				dwellTimer = nil
 			} else {
