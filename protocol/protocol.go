@@ -20,6 +20,8 @@ package protocol
 import (
 	"fmt"
 	"log"
+	"math/rand"
+	"time"
 
 	"github.com/bemasher/rtlamr/crc"
 	"github.com/bemasher/rtldavis/dsp"
@@ -39,18 +41,21 @@ type Parser struct {
 	dsp.Demodulator
 	crc.CRC
 
-	ChannelCount int
-	Channels     []int
+	ID        int
+	DwellTime time.Duration
+
+	channelCount int
+	channels     []int
 
 	hopIdx     int
 	hopPattern []int
 }
 
-func NewParser(symbolLength int) (p Parser) {
+func NewParser(symbolLength, id int) (p Parser) {
 	p.Demodulator = dsp.NewDemodulator(NewPacketConfig(symbolLength))
 	p.CRC = crc.NewCRC("CCITT-16", 0, 0x1021, 0)
 
-	p.Channels = []int{
+	p.channels = []int{
 		902355835, 902857585, 903359336, 903861086, 904362837, 904864587,
 		905366338, 905868088, 906369839, 906871589, 907373340, 907875090,
 		908376841, 908878591, 909380342, 909882092, 910383843, 910885593,
@@ -61,14 +66,18 @@ func NewParser(symbolLength int) (p Parser) {
 		923429355, 923931106, 924432856, 924934607, 925436357, 925938108,
 		926439858, 926941609, 927443359,
 	}
-	p.ChannelCount = len(p.Channels)
+	p.channelCount = len(p.channels)
 
-	// p.hopIdx = rand.Intn(p.ChannelCount)
-	// p.hopPattern = []int{
-	// 	0, 19, 41, 25, 8, 47, 32, 13, 36, 22, 3, 29, 44, 16, 5, 27, 38, 10,
-	// 	49, 21, 2, 30, 42, 14, 48, 7, 24, 34, 45, 1, 17, 39, 26, 9, 31, 50,
-	// 	37, 12, 20, 33, 4, 43, 28, 15, 35, 6, 40, 11, 23, 46, 18,
-	// }
+	p.hopIdx = rand.Intn(p.channelCount)
+	p.hopPattern = []int{
+		0, 19, 41, 25, 8, 47, 32, 13, 36, 22, 3, 29, 44, 16, 5, 27, 38, 10,
+		49, 21, 2, 30, 42, 14, 48, 7, 24, 34, 45, 1, 17, 39, 26, 9, 31, 50,
+		37, 12, 20, 33, 4, 43, 28, 15, 35, 6, 40, 11, 23, 46, 18,
+	}
+
+	p.ID = id
+	p.DwellTime = 2562500 * time.Microsecond
+	p.DwellTime += time.Duration(p.ID) * 62500 * time.Microsecond
 
 	return
 }
@@ -78,9 +87,19 @@ func (p Parser) Cfg() dsp.PacketConfig {
 }
 
 func (p *Parser) NextChannel() int {
-	p.hopIdx = (p.hopIdx + 1) % (p.ChannelCount - 2)
-	log.Printf("Channel: %2d %d\n", p.hopPattern[p.hopIdx], p.Channels[p.hopPattern[p.hopIdx]])
-	return p.Channels[p.hopPattern[p.hopIdx]]
+	p.hopIdx = (p.hopIdx + 1) % p.channelCount
+	log.Printf("Channel: %2d %d\n", p.hopPattern[p.hopIdx], p.channelAt(p.hopIdx))
+	return p.channelAt(p.hopIdx)
+}
+
+func (p *Parser) RandChannel() int {
+	p.hopIdx = rand.Intn(p.channelCount)
+	log.Printf("Channel: %2d %d\n", p.hopPattern[p.hopIdx], p.channelAt(p.hopIdx))
+	return p.channelAt(p.hopIdx)
+}
+
+func (p *Parser) channelAt(hopIdx int) int {
+	return p.channels[p.hopPattern[hopIdx]]
 }
 
 func (p Parser) Parse(pkts [][]byte) (msgs []Message) {
