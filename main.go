@@ -133,7 +133,11 @@ func main() {
 			missed = true
 			missCount++
 			if missCount >= 3 {
+				// We've missed three channels in a row, park on a random one
+				// until we receive another message before we start hopping
+				// again.
 				nextChannel <- p.RandChannel()
+				dwellTimer = nil
 			} else {
 				nextChannel <- p.NextChannel()
 			}
@@ -150,6 +154,7 @@ func main() {
 				missed = false
 				missCount = 0
 				dwellTimer = time.After(p.DwellTime + p.DwellTime>>1)
+				nextChannel <- p.NextChannel()
 			}
 		}
 	}
