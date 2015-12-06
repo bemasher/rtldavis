@@ -18,6 +18,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -121,11 +122,23 @@ func main() {
 		missCount  int
 	)
 
+	var missBuffer bytes.Buffer
+	missedFile, err := os.Create("missed.bin")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer missedFile.Close()
+
 	for {
 		select {
 		case <-sig:
 			return
 		case <-dwellTimer:
+			_, err := missBuffer.WriteTo(missedFile)
+			if err != nil {
+				log.Fatal(err)
+			}
+
 			// If the dwellTimer has expired, we've missed a message. Reset
 			// the timer and increment missCounter.
 			dwellTimer = time.After(p.DwellTime)
@@ -143,6 +156,8 @@ func main() {
 		default:
 			in.Read(block)
 
+			missBuffer.Write(block)
+
 			recvPacket := false
 			for _, msg := range p.Parse(p.Demodulate(block)) {
 				recvPacket = true
@@ -156,6 +171,7 @@ func main() {
 				// hops. Finally, hop to the next chanel.
 				missCount = 0
 				dwellTimer = time.After(p.DwellTime + p.DwellTime>>1)
+				missBuffer.Reset()
 				nextChannel <- p.NextChannel()
 			}
 		}
