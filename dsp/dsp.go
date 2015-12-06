@@ -253,8 +253,8 @@ func NewDemodulator(cfg PacketConfig) (d Demodulator) {
 
 	d.Raw = make([]byte, d.Cfg.BlockSize<<2)
 	d.IQ = make([]complex128, d.Cfg.BlockSize+9)
-	d.Filtered = make([]complex128, d.Cfg.BlockSize)
-	d.Discriminated = make([]float64, d.Cfg.BlockSize-1)
+	d.Filtered = make([]complex128, d.Cfg.BlockSize+1)
+	d.Discriminated = make([]float64, d.Cfg.BlockSize)
 	d.Quantized = make([]byte, d.Cfg.BlockSize<<1)
 
 	d.slices = make([][]byte, d.Cfg.SymbolLength)
@@ -275,17 +275,18 @@ func NewDemodulator(cfg PacketConfig) (d Demodulator) {
 }
 
 func (d *Demodulator) Demodulate(input []byte) [][]byte {
-	copy(d.Raw, d.Raw[d.Cfg.BlockSize<<1:])
+	copy(d.Raw, d.Raw[d.Cfg.BlockSize2:])
 	// Only need the last filter-length worth of samples.
 	// d.IQ is BlockSize + 9 for our case.
 	copy(d.IQ, d.IQ[d.Cfg.BlockSize:])
+	d.Filtered[0] = d.Filtered[len(d.Filtered)-1]
 	copy(d.Quantized, d.Quantized[d.Cfg.BlockSize:])
 
-	copy(d.Raw[d.Cfg.BlockSize<<1:], input)
+	copy(d.Raw[d.Cfg.BlockSize2:], input)
 
-	d.lut.Execute(d.Raw[d.Cfg.BlockSize<<1:], d.IQ[9:])
+	d.lut.Execute(d.Raw[d.Cfg.BlockSize2:], d.IQ[9:])
 	RotateFs4(d.IQ[9:], d.IQ[9:])
-	FIR9(d.IQ, d.Filtered)
+	FIR9(d.IQ, d.Filtered[1:])
 	Discriminate(d.Filtered, d.Discriminated)
 	Quantize(d.Discriminated, d.Quantized[d.Cfg.BlockSize:])
 	d.Pack(d.Quantized[:d.Cfg.BlockSize], d.slices)

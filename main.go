@@ -19,6 +19,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"log"
@@ -122,7 +123,7 @@ func main() {
 		missCount  int
 	)
 
-	var missBuffer bytes.Buffer
+	missBuffer := new(bytes.Buffer)
 	missedFile, err := os.Create("missed.bin")
 	if err != nil {
 		log.Fatal(err)
@@ -156,14 +157,14 @@ func main() {
 		default:
 			in.Read(block)
 
-			if dwellTimer != nil {
-				missBuffer.Write(block)
-			}
-
 			recvPacket := false
 			for _, msg := range p.Parse(p.Demodulate(block)) {
 				recvPacket = true
 				log.Printf("%02X\n", msg.Data)
+			}
+
+			if dwellTimer != nil {
+				binary.Write(missBuffer, binary.LittleEndian, p.Demodulator.IQ[9:])
 			}
 
 			if recvPacket {
