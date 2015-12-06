@@ -118,7 +118,6 @@ func main() {
 	block := make([]byte, p.Cfg().BlockSize2)
 	var (
 		dwellTimer <-chan time.Time
-		missed     bool
 		missCount  int
 	)
 
@@ -127,17 +126,15 @@ func main() {
 		case <-sig:
 			return
 		case <-dwellTimer:
-			if missed {
-				// Missed last hop, reset dwellTimer to p.DwellTime, we're
-				// half of p.DwellTime offset, message should occur in the
-				// middle of our current.
-				dwellTimer = time.After(p.DwellTime)
-			}
-			missed = true
+			// If the dwellTimer has expired, we've missed a message. Reset
+			// the timer and increment missCounter.
+			dwellTimer = time.After(p.DwellTime)
 			missCount++
+
+			// If we've missed three messages in a row, disable the dwellTimer
+			// and park on a random channel until we receive a message.
+			// Otherwise, continue hopping.
 			if missCount >= 3 {
-				// We've missed three channels in a row, park on a random one
-				// until we receive another message before hopping again.
 				nextChannel <- p.RandChannel()
 				dwellTimer = nil
 			} else {
@@ -153,7 +150,10 @@ func main() {
 			}
 
 			if recvPacket {
-				missed = false
+				// Reset the miss counter when we've received a message. Set
+				// the dwellTimer to 1.5 * p.DwellTime. Any missed messages
+				// after this timer expires should occur in the time between
+				// hops. Finally, hop to the next chanel.
 				missCount = 0
 				dwellTimer = time.After(p.DwellTime + p.DwellTime>>1)
 				nextChannel <- p.NextChannel()
