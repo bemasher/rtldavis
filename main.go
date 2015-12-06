@@ -156,7 +156,9 @@ func main() {
 		default:
 			in.Read(block)
 
-			missBuffer.Write(block)
+			if dwellTimer != nil {
+				missBuffer.Write(block)
+			}
 
 			recvPacket := false
 			for _, msg := range p.Parse(p.Demodulate(block)) {
