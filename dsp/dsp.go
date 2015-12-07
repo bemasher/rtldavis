@@ -48,19 +48,18 @@ func (l *ByteToCmplxLUT) Execute(in []byte, out []complex128) {
 func RotateFs4(in, out []complex128) {
 	for idx := 0; idx < len(out); idx += 4 {
 		inAt := in[idx:]
-		o0 := inAt[0]
+		i0 := inAt[0]
 		i1 := inAt[1]
 		i2 := inAt[2]
 		i3 := inAt[3]
 
 		o1 := complex(-imag(i1), real(i1))
-		o2 := complex(-real(i2), -imag(i2))
 		o3 := complex(imag(i3), -real(i3))
 
 		outAt := out[idx:]
-		outAt[0] = o0
+		outAt[0] = i0
 		outAt[1] = o1
-		outAt[2] = o2
+		outAt[2] = -i2
 		outAt[3] = o3
 	}
 }
