@@ -53,7 +53,7 @@ func RotateFs4(in, out []complex128) {
 		i2 := inAt[2]
 		i3 := inAt[3]
 
-		o1 := complex(imag(i1), real(i1))
+		o1 := complex(-imag(i1), real(i1))
 		o2 := complex(-real(i2), -imag(i2))
 		o3 := complex(imag(i3), -real(i3))
 
