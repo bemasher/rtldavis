@@ -190,7 +190,7 @@ func NewPacketConfig(bitRate, symbolLength, preambleSymbols, packetSymbols int, 
 
 	cfg.SampleRate = cfg.BitRate * cfg.SymbolLength
 
-	cfg.BlockSize = 2048
+	cfg.BlockSize = 512
 	cfg.BlockSize2 = cfg.BlockSize << 1
 
 	cfg.BufferLength = (cfg.PacketLength/cfg.BlockSize + 1) * cfg.BlockSize
@@ -250,14 +250,14 @@ func (d *Demodulator) Reset() {
 func NewDemodulator(cfg PacketConfig) (d Demodulator) {
 	d.Cfg = cfg
 
-	d.Raw = make([]byte, d.Cfg.BlockSize<<2)
+	d.Raw = make([]byte, d.Cfg.BufferLength<<1)
 	d.IQ = make([]complex128, d.Cfg.BlockSize+9)
 	d.Filtered = make([]complex128, d.Cfg.BlockSize+1)
 	d.Discriminated = make([]float64, d.Cfg.BlockSize)
-	d.Quantized = make([]byte, d.Cfg.BlockSize<<1)
+	d.Quantized = make([]byte, d.Cfg.BufferLength)
 
 	d.slices = make([][]byte, d.Cfg.SymbolLength)
-	flat := make([]byte, d.Cfg.BlockSize2-(d.Cfg.BlockSize%d.Cfg.SymbolLength))
+	flat := make([]byte, d.Cfg.BufferLength-(d.Cfg.BufferLength%d.Cfg.SymbolLength))
 
 	symbolsPerBlock := d.Cfg.BlockSize / d.Cfg.SymbolLength
 	for symbolOffset := range d.slices {
@@ -281,13 +281,13 @@ func (d *Demodulator) Demodulate(input []byte) [][]byte {
 	d.Filtered[0] = d.Filtered[len(d.Filtered)-1]
 	copy(d.Quantized, d.Quantized[d.Cfg.BlockSize:])
 
-	copy(d.Raw[d.Cfg.BlockSize2:], input)
+	copy(d.Raw[d.Cfg.BufferLength<<1-d.Cfg.BlockSize2:], input)
 
-	d.lut.Execute(d.Raw[d.Cfg.BlockSize2:], d.IQ[9:])
+	d.lut.Execute(d.Raw[d.Cfg.BufferLength<<1-d.Cfg.BlockSize2:], d.IQ[9:])
 	RotateFs4(d.IQ[9:], d.IQ[9:])
 	FIR9(d.IQ, d.Filtered[1:])
 	Discriminate(d.Filtered, d.Discriminated)
-	Quantize(d.Discriminated, d.Quantized[d.Cfg.BlockSize:])
+	Quantize(d.Discriminated, d.Quantized[d.Cfg.BufferLength-d.Cfg.BlockSize:])
 	d.Pack(d.Quantized[:d.Cfg.BlockSize], d.slices)
 	return d.Slice(d.Search())
 }
