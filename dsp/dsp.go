@@ -85,8 +85,16 @@ func FIR9(in, out []complex128) {
 }
 
 func Discriminate(in []complex128, out []float64) {
+	// We spend a lot of time in this function and for the sake of efficiency, this:
+	//     out[idx] = cmplx.Phase(in[idx] * cmplx.Conj(in[idx+1]))
+	// Is equivalent to this:
+	//     out[idx] = imag(in[idx] * cmplx.Conj(in[idx+1])) / cmplx.Abs(in[idx])
+	// Because the magnitude of our signal should be constant, we can do this:
+	//     out[idx] = imag(in[idx] * cmplx.Conj(in[idx+1]))
+	// Which, if you do all the simplification, should be two multiplies and
+	// an add. Need to benchmark on an RPi or RPi2 but on my desktop this is
+	// almost a full order of magnitude faster.
 	for idx := range out {
-		// out[idx] = cmplx.Phase(in[idx] * cmplx.Conj(in[idx+1]))
 		out[idx] = imag(in[idx] * cmplx.Conj(in[idx+1]))
 	}
 }
