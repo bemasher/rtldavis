@@ -86,7 +86,8 @@ func FIR9(in, out []complex128) {
 
 func Discriminate(in []complex128, out []float64) {
 	for idx := range out {
-		out[idx] = cmplx.Phase(in[idx] * cmplx.Conj(in[idx+1]))
+		// out[idx] = cmplx.Phase(in[idx] * cmplx.Conj(in[idx+1]))
+		out[idx] = imag(in[idx] * cmplx.Conj(in[idx+1]))
 	}
 }
 
