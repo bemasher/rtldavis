@@ -20,6 +20,7 @@ package protocol
 import (
 	"fmt"
 	"log"
+	"math"
 	"math/rand"
 	"time"
 
@@ -102,33 +103,43 @@ func (p *Parser) channelAt(hopIdx int) int {
 	return p.channels[p.hopPattern[hopIdx]]
 }
 
-func (p Parser) Parse(pkts [][]byte) (msgs []Message) {
+func (p *Parser) Parse(pkts []dsp.Packet) (msgs []Message) {
 	seen := make(map[string]bool)
 
 	for _, pkt := range pkts {
-		for idx, b := range pkt {
-			pkt[idx] = SwapBitOrder(b)
+		for idx, b := range pkt.Data {
+			pkt.Data[idx] = SwapBitOrder(b)
 		}
 
-		s := string(pkt)
+		s := string(pkt.Data)
 		if seen[s] {
 			continue
 		}
 		seen[s] = true
 
 		// If the checksum fails, bail.
-		if p.Checksum(pkt[2:]) != 0 {
+		if p.Checksum(pkt.Data[2:]) != 0 {
 			continue
 		}
 
-		msgs = append(msgs, NewMessage(pkt))
+		var mean float64
+		symLen := p.Cfg().SymbolLength
+		tail := p.Demodulator.Discriminated[pkt.Idx+8*symLen : pkt.Idx+24*symLen]
+		for _, sample := range tail {
+			mean += sample
+		}
+		mean /= float64(len(tail))
+
+		freqError := 9600 + (mean*float64(p.Cfg().SampleRate))/(2*math.Pi)
+		msgs = append(msgs, NewMessage(pkt, freqError))
 	}
 
 	return
 }
 
 type Message struct {
-	Data []byte
+	dsp.Packet
+	FreqError float64
 
 	ID     byte
 	Sensor Sensor
@@ -137,9 +148,12 @@ type Message struct {
 	WindDirection byte
 }
 
-func NewMessage(data []byte) (m Message) {
-	m.Data = make([]byte, len(data)-2)
-	copy(m.Data, data[2:])
+func NewMessage(pkt dsp.Packet, freqError float64) (m Message) {
+	m.Idx = pkt.Idx
+	m.Data = make([]byte, len(pkt.Data)-2)
+	copy(m.Data, pkt.Data[2:])
+
+	m.FreqError = freqError
 
 	m.ID = m.Data[0] & 0xF
 	m.Sensor = Sensor(m.Data[0] >> 4)

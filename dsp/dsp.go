@@ -92,8 +92,9 @@ func Discriminate(in []complex128, out []float64) {
 	//     out[idx] = imag(i*cmplx.Conj(in[idx+1])) / (real(i)*real(i) + imag(i)*imag(i))
 	// Need to benchmark on an RPi or RPi2 but on my desktop this is nearly 5x faster.
 	for idx := range out {
-		i := in[idx]
-		out[idx] = imag(i*cmplx.Conj(in[idx+1])) / (real(i)*real(i) + imag(i)*imag(i))
+		out[idx] = cmplx.Phase(in[idx] * cmplx.Conj(in[idx+1]))
+		// i := in[idx]
+		// out[idx] = imag(i*cmplx.Conj(in[idx+1])) / (real(i)*real(i) + imag(i)*imag(i))
 	}
 }
 
@@ -128,7 +129,7 @@ func (d *Demodulator) Search() (indexes []int) {
 	return
 }
 
-func (d *Demodulator) Slice(indices []int) (pkts [][]byte) {
+func (d *Demodulator) Slice(indices []int) (pkts []Packet) {
 	// We will likely find multiple instances of the message so only keep
 	// track of unique instances.
 	seen := make(map[string]bool)
@@ -151,8 +152,10 @@ func (d *Demodulator) Slice(indices []int) (pkts [][]byte) {
 		pktStr := fmt.Sprintf("%02X", d.pkt)
 		if !seen[pktStr] {
 			seen[pktStr] = true
-			pkts = append(pkts, make([]byte, len(d.pkt)))
-			copy(pkts[len(pkts)-1], d.pkt)
+
+			pkt := Packet{qIdx, make([]byte, len(d.pkt))}
+			copy(pkt.Data, d.pkt)
+			pkts = append(pkts, pkt)
 		}
 	}
 
@@ -280,7 +283,7 @@ func NewDemodulator(cfg PacketConfig) (d Demodulator) {
 	return d
 }
 
-func (d *Demodulator) Demodulate(input []byte) [][]byte {
+func (d *Demodulator) Demodulate(input []byte) []Packet {
 	copy(d.Raw, d.Raw[d.Cfg.BlockSize2:])
 	// Only need the last filter-length worth of samples.
 	// d.IQ is BlockSize + 9 for our case.
@@ -297,4 +300,10 @@ func (d *Demodulator) Demodulate(input []byte) [][]byte {
 	Quantize(d.Discriminated, d.Quantized[d.Cfg.BufferLength-d.Cfg.BlockSize:])
 	d.Pack(d.Quantized[:d.Cfg.BlockSize], d.slices)
 	return d.Slice(d.Search())
+}
+
+type Packet struct {
+	Idx int
+
+	Data []byte
 }

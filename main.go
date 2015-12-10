@@ -146,7 +146,7 @@ func main() {
 			recvPacket := false
 			for _, msg := range p.Parse(p.Demodulate(block)) {
 				recvPacket = true
-				log.Printf("%02X\n", msg.Data)
+				log.Printf("%02X %0.0f Hz\n", msg.Data, msg.FreqError)
 			}
 
 			if recvPacket {
