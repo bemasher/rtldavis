@@ -92,9 +92,8 @@ func Discriminate(in []complex128, out []float64) {
 	//     out[idx] = imag(i*cmplx.Conj(in[idx+1])) / (real(i)*real(i) + imag(i)*imag(i))
 	// Need to benchmark on an RPi or RPi2 but on my desktop this is nearly 5x faster.
 	for idx := range out {
-		out[idx] = cmplx.Phase(in[idx] * cmplx.Conj(in[idx+1]))
-		// i := in[idx]
-		// out[idx] = imag(i*cmplx.Conj(in[idx+1])) / (real(i)*real(i) + imag(i)*imag(i))
+		i := in[idx]
+		out[idx] = imag(i*cmplx.Conj(in[idx+1])) / (real(i)*real(i) + imag(i)*imag(i))
 	}
 }
 
