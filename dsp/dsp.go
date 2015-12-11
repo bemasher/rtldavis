@@ -128,6 +128,11 @@ func (d *Demodulator) Search() (indexes []int) {
 	return
 }
 
+type Packet struct {
+	Idx  int
+	Data []byte
+}
+
 func (d *Demodulator) Slice(indices []int) (pkts []Packet) {
 	// We will likely find multiple instances of the message so only keep
 	// track of unique instances.
@@ -224,7 +229,7 @@ func (cfg PacketConfig) Log() {
 }
 
 type Demodulator struct {
-	Cfg PacketConfig
+	Cfg *PacketConfig
 
 	Raw           []byte
 	IQ            []complex128
@@ -238,25 +243,7 @@ type Demodulator struct {
 	lut ByteToCmplxLUT
 }
 
-func (d *Demodulator) Reset() {
-	for idx := range d.Raw {
-		d.Raw[idx] = 0
-	}
-	for idx := range d.IQ {
-		d.IQ[idx] = 0
-	}
-	for idx := range d.Filtered {
-		d.Filtered[idx] = 0
-	}
-	for idx := range d.Discriminated {
-		d.Discriminated[idx] = 0
-	}
-	for idx := range d.Quantized {
-		d.Quantized[idx] = 0
-	}
-}
-
-func NewDemodulator(cfg PacketConfig) (d Demodulator) {
+func NewDemodulator(cfg *PacketConfig) (d Demodulator) {
 	d.Cfg = cfg
 
 	d.Raw = make([]byte, d.Cfg.BufferLength<<1)
@@ -301,8 +288,20 @@ func (d *Demodulator) Demodulate(input []byte) []Packet {
 	return d.Slice(d.Search())
 }
 
-type Packet struct {
-	Idx int
-
-	Data []byte
+func (d *Demodulator) Reset() {
+	for idx := range d.Raw {
+		d.Raw[idx] = 0
+	}
+	for idx := range d.IQ {
+		d.IQ[idx] = 0
+	}
+	for idx := range d.Filtered {
+		d.Filtered[idx] = 0
+	}
+	for idx := range d.Discriminated {
+		d.Discriminated[idx] = 0
+	}
+	for idx := range d.Quantized {
+		d.Quantized[idx] = 0
+	}
 }

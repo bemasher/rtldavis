@@ -42,6 +42,8 @@ type Parser struct {
 	dsp.Demodulator
 	crc.CRC
 
+	Cfg dsp.PacketConfig
+
 	ID        int
 	DwellTime time.Duration
 
@@ -53,7 +55,8 @@ type Parser struct {
 }
 
 func NewParser(symbolLength, id int) (p Parser) {
-	p.Demodulator = dsp.NewDemodulator(NewPacketConfig(symbolLength))
+	p.Cfg = NewPacketConfig(symbolLength)
+	p.Demodulator = dsp.NewDemodulator(&p.Cfg)
 	p.CRC = crc.NewCRC("CCITT-16", 0, 0x1021, 0)
 
 	p.channels = []int{
@@ -81,10 +84,6 @@ func NewParser(symbolLength, id int) (p Parser) {
 	p.DwellTime += time.Duration(p.ID) * 62500 * time.Microsecond
 
 	return
-}
-
-func (p Parser) Cfg() dsp.PacketConfig {
-	return p.Demodulator.Cfg
 }
 
 func (p *Parser) NextChannel() int {
@@ -123,14 +122,20 @@ func (p *Parser) Parse(pkts []dsp.Packet) (msgs []Message) {
 		}
 
 		var mean float64
-		symLen := p.Cfg().SymbolLength
-		tail := p.Demodulator.Discriminated[pkt.Idx+8*symLen : pkt.Idx+24*symLen]
+		symLen := p.Cfg.SymbolLength
+
+		lower := pkt.Idx + 8*symLen
+		upper := pkt.Idx + 24*symLen
+		if upper > p.Cfg.BlockSize {
+			upper = p.Cfg.BlockSize - 1
+		}
+		tail := p.Demodulator.Discriminated[lower:upper]
 		for _, sample := range tail {
 			mean += sample
 		}
 		mean /= float64(len(tail))
 
-		freqError := 9600 + (mean*float64(p.Cfg().SampleRate))/(2*math.Pi)
+		freqError := 9600 + (mean*float64(p.Cfg.SampleRate))/(2*math.Pi)
 		msgs = append(msgs, NewMessage(pkt, freqError))
 	}
 

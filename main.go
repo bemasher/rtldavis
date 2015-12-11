@@ -61,9 +61,9 @@ func init() {
 
 func main() {
 	p := protocol.NewParser(14, 0)
-	p.Cfg().Log()
+	p.Cfg.Log()
 
-	fs := p.Cfg().SampleRate
+	fs := p.Cfg.SampleRate
 
 	dev, err := rtlsdr.Open(0)
 	if err != nil {
@@ -91,7 +91,7 @@ func main() {
 
 	go dev.ReadAsync(func(buf []byte) {
 		out.Write(buf)
-	}, nil, 1, p.Cfg().BlockSize2)
+	}, nil, 1, p.Cfg.BlockSize2)
 
 	// Handle frequency hops concurrently since the callback will stall if
 	// we stop reading to hop.
@@ -115,7 +115,7 @@ func main() {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, os.Kill)
 
-	block := make([]byte, p.Cfg().BlockSize2)
+	block := make([]byte, p.Cfg.BlockSize2)
 	var (
 		dwellTimer <-chan time.Time
 		missCount  int
