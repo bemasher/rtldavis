@@ -113,6 +113,7 @@ func (p *Parser) ChannelPPM() int {
 		return p.currentPPM
 	} else {
 		log.Printf("PPM: %2d\n", ppm)
+		p.currentPPM = ppm
 		return ppm
 	}
 }
@@ -155,6 +156,7 @@ func (p *Parser) Parse(pkts []dsp.Packet) (msgs []Message) {
 		ppm := int(math.Floor(freqError/freq + 0.5))
 
 		p.channelPPM[p.hopPattern[p.hopIdx]] = p.currentPPM + ppm
+		p.currentPPM += ppm
 
 		msgs = append(msgs, NewMessage(pkt))
 	}
