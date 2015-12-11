@@ -18,40 +18,21 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"math/rand"
 	"os"
 	"os/signal"
-	"strings"
+	"sync"
 	"time"
 
 	"github.com/bemasher/rtldavis/protocol"
 	"github.com/jpoirier/gortlsdr"
 )
 
-type HopPattern []map[int]int
-
-func NewHopPattern(n int) HopPattern {
-	h := make(HopPattern, n)
-	for idx := range h {
-		h[idx] = make(map[int]int)
-	}
-	return h
-}
-
-func (h HopPattern) String() string {
-	var elements []string
-	for _, hop := range h {
-		var hopElements []string
-		for channel, count := range hop {
-			hopElements = append(hopElements, fmt.Sprintf("%v:%v", channel, count))
-		}
-		elements = append(elements, "["+strings.Join(hopElements, ",")+"]")
-	}
-
-	return "[" + strings.Join(elements, " ") + "]"
+type SDR struct {
+	sync.Mutex
+	*rtlsdr.Context
 }
 
 func init() {
@@ -65,7 +46,11 @@ func main() {
 
 	fs := p.Cfg.SampleRate
 
-	dev, err := rtlsdr.Open(0)
+	var (
+		dev SDR
+		err error
+	)
+	dev.Context, err = rtlsdr.Open(0)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -105,18 +90,22 @@ func main() {
 	nextChannel := make(chan int, 1)
 	go func() {
 		for ch := range nextChannel {
+			dev.Lock()
 			if err := dev.SetCenterFreq(ch); err != nil {
 				log.Fatal(err)
 			}
+			dev.Unlock()
 		}
 	}()
 
 	nextPPM := make(chan int, 1)
 	go func() {
 		for ppm := range nextPPM {
+			dev.Lock()
 			if err := dev.SetFreqCorrection(ppm); err != nil {
 				log.Println(err)
 			}
+			dev.Unlock()
 		}
 	}()
 
