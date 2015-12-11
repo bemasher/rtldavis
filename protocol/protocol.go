@@ -52,6 +52,9 @@ type Parser struct {
 
 	hopIdx     int
 	hopPattern []int
+
+	currentPPM int
+	channelPPM map[int]int
 }
 
 func NewParser(symbolLength, id int) (p Parser) {
@@ -79,6 +82,8 @@ func NewParser(symbolLength, id int) (p Parser) {
 		37, 12, 20, 33, 4, 43, 28, 15, 35, 6, 40, 11, 23, 46, 18,
 	}
 
+	p.channelPPM = make(map[int]int)
+
 	p.ID = id
 	p.DwellTime = 2562500 * time.Microsecond
 	p.DwellTime += time.Duration(p.ID) * 62500 * time.Microsecond
@@ -86,20 +91,30 @@ func NewParser(symbolLength, id int) (p Parser) {
 	return
 }
 
+func (p *Parser) channelFreq(hopIdx int) int {
+	return p.channels[p.hopPattern[hopIdx]]
+}
+
 func (p *Parser) NextChannel() int {
 	p.hopIdx = (p.hopIdx + 1) % p.channelCount
-	log.Printf("Channel: %2d %d\n", p.hopPattern[p.hopIdx], p.channelAt(p.hopIdx))
-	return p.channelAt(p.hopIdx)
+	log.Printf("Channel: %2d %d\n", p.hopPattern[p.hopIdx], p.channelFreq(p.hopIdx))
+	return p.channelFreq(p.hopIdx)
 }
 
 func (p *Parser) RandChannel() int {
 	p.hopIdx = rand.Intn(p.channelCount)
-	log.Printf("Channel: %2d %d\n", p.hopPattern[p.hopIdx], p.channelAt(p.hopIdx))
-	return p.channelAt(p.hopIdx)
+	log.Printf("Channel: %2d %d\n", p.hopPattern[p.hopIdx], p.channelFreq(p.hopIdx))
+	return p.channelFreq(p.hopIdx)
 }
 
-func (p *Parser) channelAt(hopIdx int) int {
-	return p.channels[p.hopPattern[hopIdx]]
+func (p *Parser) ChannelPPM() int {
+	if ppm, exists := p.channelPPM[p.hopPattern[p.hopIdx]]; !exists {
+		log.Printf("PPM: %2d\n", p.currentPPM)
+		return p.currentPPM
+	} else {
+		log.Printf("PPM: %2d\n", ppm)
+		return ppm
+	}
 }
 
 func (p *Parser) Parse(pkts []dsp.Packet) (msgs []Message) {
@@ -136,7 +151,12 @@ func (p *Parser) Parse(pkts []dsp.Packet) (msgs []Message) {
 		mean /= float64(len(tail))
 
 		freqError := 9600 + (mean*float64(p.Cfg.SampleRate))/(2*math.Pi)
-		msgs = append(msgs, NewMessage(pkt, freqError))
+		freq := float64(p.channelFreq(p.hopIdx)) / 1e6
+		ppm := int(math.Floor(freqError/freq + 0.5))
+
+		p.channelPPM[p.hopPattern[p.hopIdx]] = p.currentPPM + ppm
+
+		msgs = append(msgs, NewMessage(pkt))
 	}
 
 	return
@@ -144,7 +164,6 @@ func (p *Parser) Parse(pkts []dsp.Packet) (msgs []Message) {
 
 type Message struct {
 	dsp.Packet
-	FreqError float64
 
 	ID     byte
 	Sensor Sensor
@@ -153,12 +172,10 @@ type Message struct {
 	WindDirection byte
 }
 
-func NewMessage(pkt dsp.Packet, freqError float64) (m Message) {
+func NewMessage(pkt dsp.Packet) (m Message) {
 	m.Idx = pkt.Idx
 	m.Data = make([]byte, len(pkt.Data)-2)
 	copy(m.Data, pkt.Data[2:])
-
-	m.FreqError = freqError
 
 	m.ID = m.Data[0] & 0xF
 	m.Sensor = Sensor(m.Data[0] >> 4)

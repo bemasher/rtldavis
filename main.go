@@ -85,7 +85,8 @@ func main() {
 
 	// Documentation on gortlsdr says this will fail with an error if previous
 	// ppm is same value as new. Don't fail on this, just print a message.
-	if err := dev.SetFreqCorrection(0); err != nil {
+	ppm := p.ChannelPPM()
+	if err := dev.SetFreqCorrection(ppm); err != nil {
 		log.Println(err)
 	}
 
@@ -106,6 +107,15 @@ func main() {
 		for ch := range nextChannel {
 			if err := dev.SetCenterFreq(ch); err != nil {
 				log.Fatal(err)
+			}
+		}
+	}()
+
+	nextPPM := make(chan int, 1)
+	go func() {
+		for ppm := range nextPPM {
+			if err := dev.SetFreqCorrection(ppm); err != nil {
+				log.Println(err)
 			}
 		}
 	}()
@@ -152,7 +162,7 @@ func main() {
 			recvPacket := false
 			for _, msg := range p.Parse(p.Demodulate(block)) {
 				recvPacket = true
-				log.Printf("%02X %0.0f Hz\n", msg.Data, msg.FreqError)
+				log.Printf("%02X\n", msg.Data)
 			}
 
 			if recvPacket {
@@ -162,7 +172,9 @@ func main() {
 				// hops. Finally, hop to the next chanel.
 				missCount = 0
 				dwellTimer = time.After(p.DwellTime + p.DwellTime>>1)
+
 				nextChannel <- p.NextChannel()
+				nextPPM <- p.ChannelPPM()
 			}
 		}
 	}
