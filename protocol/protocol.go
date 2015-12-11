@@ -19,7 +19,6 @@ package protocol
 
 import (
 	"fmt"
-	"log"
 	"math"
 	"math/rand"
 	"time"
@@ -97,22 +96,22 @@ func (p *Parser) channelFreq(hopIdx int) int {
 
 func (p *Parser) NextChannel() int {
 	p.hopIdx = (p.hopIdx + 1) % p.channelCount
-	log.Printf("Channel: %2d %d\n", p.hopPattern[p.hopIdx], p.channelFreq(p.hopIdx))
 	return p.channelFreq(p.hopIdx)
 }
 
 func (p *Parser) RandChannel() int {
 	p.hopIdx = rand.Intn(p.channelCount)
-	log.Printf("Channel: %2d %d\n", p.hopPattern[p.hopIdx], p.channelFreq(p.hopIdx))
 	return p.channelFreq(p.hopIdx)
+}
+
+func (p *Parser) HopIdx() int {
+	return p.hopIdx
 }
 
 func (p *Parser) ChannelPPM() int {
 	if ppm, exists := p.channelPPM[p.hopPattern[p.hopIdx]]; !exists {
-		log.Printf("PPM: %2d\n", p.currentPPM)
 		return p.currentPPM
 	} else {
-		log.Printf("PPM: %2d\n", ppm)
 		p.currentPPM = ppm
 		return ppm
 	}

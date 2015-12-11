@@ -23,16 +23,16 @@ import (
 	"math/rand"
 	"os"
 	"os/signal"
-	"sync"
 	"time"
 
 	"github.com/bemasher/rtldavis/protocol"
 	"github.com/jpoirier/gortlsdr"
 )
 
-type SDR struct {
-	sync.Mutex
-	*rtlsdr.Context
+type Hop struct {
+	Frequency  int
+	ChannelIdx int
+	PPM        int
 }
 
 func init() {
@@ -46,11 +46,7 @@ func main() {
 
 	fs := p.Cfg.SampleRate
 
-	var (
-		dev SDR
-		err error
-	)
-	dev.Context, err = rtlsdr.Open(0)
+	dev, err := rtlsdr.Open(0)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -85,27 +81,18 @@ func main() {
 		out.Write(buf)
 	}, nil, 1, p.Cfg.BlockSize2)
 
-	// Handle frequency hops concurrently since the callback will stall if
-	// we stop reading to hop.
-	nextChannel := make(chan int, 1)
+	// Handle frequency hops and correction concurrently since the callback
+	// will stall if we stop reading to hop.
+	nextHop := make(chan Hop, 1)
 	go func() {
-		for ch := range nextChannel {
-			dev.Lock()
-			if err := dev.SetCenterFreq(ch); err != nil {
+		for hop := range nextHop {
+			log.Printf("Hop: %2d %d %d\n", hop.ChannelIdx, hop.Frequency, hop.PPM)
+			if err := dev.SetCenterFreq(hop.Frequency); err != nil {
 				log.Fatal(err)
 			}
-			dev.Unlock()
-		}
-	}()
-
-	nextPPM := make(chan int, 1)
-	go func() {
-		for ppm := range nextPPM {
-			dev.Lock()
-			if err := dev.SetFreqCorrection(ppm); err != nil {
+			if err := dev.SetFreqCorrection(hop.PPM); err != nil {
 				log.Println(err)
 			}
-			dev.Unlock()
 		}
 	}()
 
@@ -140,10 +127,10 @@ func main() {
 			// and park on a random channel until we receive a message.
 			// Otherwise, continue hopping.
 			if missCount >= 3 {
-				nextChannel <- p.RandChannel()
+				nextHop <- Hop{p.RandChannel(), p.HopIdx(), p.ChannelPPM()}
 				dwellTimer = nil
 			} else {
-				nextChannel <- p.NextChannel()
+				nextHop <- Hop{p.NextChannel(), p.HopIdx(), p.ChannelPPM()}
 			}
 		default:
 			in.Read(block)
@@ -162,8 +149,7 @@ func main() {
 				missCount = 0
 				dwellTimer = time.After(p.DwellTime + p.DwellTime>>1)
 
-				nextChannel <- p.NextChannel()
-				nextPPM <- p.ChannelPPM()
+				nextHop <- Hop{p.NextChannel(), p.HopIdx(), p.ChannelPPM()}
 			}
 		}
 	}
