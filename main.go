@@ -83,6 +83,12 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// Documentation on gortlsdr says this will fail with an error if previous
+	// ppm is same value as new. Don't fail on this, just print a message.
+	if err := dev.SetFreqCorrection(0); err != nil {
+		log.Println(err)
+	}
+
 	if err := dev.ResetBuffer(); err != nil {
 		log.Fatal(err)
 	}
