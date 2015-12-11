@@ -127,10 +127,10 @@ func main() {
 			// and park on a random channel until we receive a message.
 			// Otherwise, continue hopping.
 			if missCount >= 3 {
-				nextHop <- Hop{p.RandChannel(), p.HopIdx(), p.ChannelPPM()}
+				nextHop <- Hop{p.RandChannel(), p.ChannelIdx(), p.ChannelPPM()}
 				dwellTimer = nil
 			} else {
-				nextHop <- Hop{p.NextChannel(), p.HopIdx(), p.ChannelPPM()}
+				nextHop <- Hop{p.NextChannel(), p.ChannelIdx(), p.ChannelPPM()}
 			}
 		default:
 			in.Read(block)
@@ -149,7 +149,7 @@ func main() {
 				missCount = 0
 				dwellTimer = time.After(p.DwellTime + p.DwellTime>>1)
 
-				nextHop <- Hop{p.NextChannel(), p.HopIdx(), p.ChannelPPM()}
+				nextHop <- Hop{p.NextChannel(), p.ChannelIdx(), p.ChannelPPM()}
 			}
 		}
 	}

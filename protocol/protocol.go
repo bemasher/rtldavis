@@ -104,8 +104,8 @@ func (p *Parser) RandChannel() int {
 	return p.channelFreq(p.hopIdx)
 }
 
-func (p *Parser) HopIdx() int {
-	return p.hopIdx
+func (p *Parser) ChannelIdx() int {
+	return p.hopPattern[p.hopIdx]
 }
 
 func (p *Parser) ChannelPPM() int {
