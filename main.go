@@ -123,12 +123,12 @@ func main() {
 			dwellTimer = time.After(p.DwellTime)
 			missCount++
 
-			// If we've missed three messages in a row, disable the dwellTimer
-			// and park on a random channel until we receive a message.
-			// Otherwise, continue hopping.
+			// If we've missed three messages in a row, hop to random channels
+			// and wait for a full pattern rotation before hopping again or
+			// until we receive a message. Otherwise, keep hopping.
 			if missCount >= 3 {
 				nextHop <- Hop{p.RandChannel(), p.ChannelIdx(), p.ChannelPPM()}
-				dwellTimer = nil
+				dwellTimer = time.After(53 * p.DwellTime)
 			} else {
 				nextHop <- Hop{p.NextChannel(), p.ChannelIdx(), p.ChannelPPM()}
 			}
