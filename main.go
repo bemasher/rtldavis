@@ -108,10 +108,12 @@ func main() {
 	signal.Notify(sig, os.Interrupt, os.Kill)
 
 	block := make([]byte, p.Cfg.BlockSize2)
-	var (
-		dwellTimer <-chan time.Time
-		missCount  int
-	)
+	var missCount int
+
+	// Set the dwellTimer for one full rotation of the pattern + 1. Some channels
+	// may have enough frequency error that they won't receive until we've
+	// seen at least one message and set the frequency correction.
+	dwellTimer := time.After(53 * p.DwellTime)
 
 	for {
 		select {
