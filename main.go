@@ -18,6 +18,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"math/rand"
@@ -32,7 +33,11 @@ import (
 type Hop struct {
 	Frequency  int
 	ChannelIdx int
-	PPM        int
+	Error      int
+}
+
+func (h Hop) String() string {
+	return fmt.Sprintf("{%2d %d %d}", h.ChannelIdx, h.Frequency, h.Error)
 }
 
 func init() {
@@ -66,7 +71,7 @@ func main() {
 
 	// Documentation on gortlsdr says this will fail with an error if previous
 	// ppm is same value as new. Don't fail on this, just print a message.
-	ppm := p.ChannelPPM()
+	ppm := p.ChannelErr()
 	if err := dev.SetFreqCorrection(ppm); err != nil {
 		log.Println(err)
 	}
@@ -81,17 +86,14 @@ func main() {
 		out.Write(buf)
 	}, nil, 1, p.Cfg.BlockSize2)
 
-	// Handle frequency hops and correction concurrently since the callback
-	// will stall if we stop reading to hop.
+	// Handle frequency hops concurrently since the callback will stall if we
+	// stop reading to hop.
 	nextHop := make(chan Hop, 1)
 	go func() {
 		for hop := range nextHop {
-			log.Printf("Hop: %2d %d %d\n", hop.ChannelIdx, hop.Frequency, hop.PPM)
-			if err := dev.SetCenterFreq(hop.Frequency); err != nil {
+			log.Printf("Hop: %s\n", hop)
+			if err := dev.SetCenterFreq(hop.Frequency + hop.Error); err != nil {
 				log.Fatal(err)
-			}
-			if err := dev.SetFreqCorrection(hop.PPM); err != nil {
-				log.Println(err)
 			}
 		}
 	}()
@@ -129,10 +131,10 @@ func main() {
 			// and wait for a full pattern rotation before hopping again or
 			// until we receive a message. Otherwise, keep hopping.
 			if missCount >= 3 {
-				nextHop <- Hop{p.RandChannel(), p.ChannelIdx(), p.ChannelPPM()}
+				nextHop <- Hop{p.RandChannel(), p.ChannelIdx(), p.ChannelErr()}
 				dwellTimer = time.After(53 * p.DwellTime)
 			} else {
-				nextHop <- Hop{p.NextChannel(), p.ChannelIdx(), p.ChannelPPM()}
+				nextHop <- Hop{p.NextChannel(), p.ChannelIdx(), p.ChannelErr()}
 			}
 		default:
 			in.Read(block)
@@ -151,7 +153,7 @@ func main() {
 				missCount = 0
 				dwellTimer = time.After(p.DwellTime + p.DwellTime>>1)
 
-				nextHop <- Hop{p.NextChannel(), p.ChannelIdx(), p.ChannelPPM()}
+				nextHop <- Hop{p.NextChannel(), p.ChannelIdx(), p.ChannelErr()}
 			}
 		}
 	}

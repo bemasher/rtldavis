@@ -19,6 +19,7 @@ package protocol
 
 import (
 	"fmt"
+	"log"
 	"math"
 	"math/rand"
 	"time"
@@ -52,8 +53,8 @@ type Parser struct {
 	hopIdx     int
 	hopPattern []int
 
-	currentPPM int
-	channelPPM map[int]int
+	currentErr int
+	channelErr map[int]int
 }
 
 func NewParser(symbolLength, id int) (p Parser) {
@@ -81,7 +82,7 @@ func NewParser(symbolLength, id int) (p Parser) {
 		37, 12, 20, 33, 4, 43, 28, 15, 35, 6, 40, 11, 23, 46, 18,
 	}
 
-	p.channelPPM = make(map[int]int)
+	p.channelErr = make(map[int]int)
 
 	p.ID = id
 	p.DwellTime = 2562500 * time.Microsecond
@@ -108,12 +109,14 @@ func (p *Parser) ChannelIdx() int {
 	return p.hopPattern[p.hopIdx]
 }
 
-func (p *Parser) ChannelPPM() int {
-	if ppm, exists := p.channelPPM[p.hopPattern[p.hopIdx]]; !exists {
-		return p.currentPPM
+func (p *Parser) ChannelErr() int {
+	if freq, exists := p.channelErr[p.hopPattern[p.hopIdx]]; !exists {
+		log.Println("Using channel last error...")
+		return p.currentErr
 	} else {
-		p.currentPPM = ppm
-		return ppm
+		log.Println("Using channel specific error...")
+		p.currentErr = freq
+		return freq
 	}
 }
 
@@ -150,12 +153,10 @@ func (p *Parser) Parse(pkts []dsp.Packet) (msgs []Message) {
 		}
 		mean /= float64(len(tail))
 
-		freqError := 9600 + (mean*float64(p.Cfg.SampleRate))/(2*math.Pi)
-		freq := float64(p.channelFreq(p.hopIdx)) / 1e6
-		ppm := int(math.Floor(freqError/freq + 0.5))
+		freqError := int(9600 + (mean*float64(p.Cfg.SampleRate))/(2*math.Pi))
 
-		p.channelPPM[p.hopPattern[p.hopIdx]] = p.currentPPM + ppm
-		p.currentPPM += ppm
+		p.channelErr[p.hopPattern[p.hopIdx]] = p.currentErr + freqError
+		p.currentErr += freqError
 
 		msgs = append(msgs, NewMessage(pkt))
 	}
