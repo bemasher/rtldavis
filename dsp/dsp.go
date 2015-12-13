@@ -207,10 +207,7 @@ func NewPacketConfig(bitRate, symbolLength, preambleSymbols, packetSymbols int, 
 	cfg.BlockSize = 512
 	cfg.BlockSize2 = cfg.BlockSize << 1
 
-	cfg.BufferLength = (cfg.PacketLength/cfg.BlockSize + 1) * cfg.BlockSize
-	if cfg.BufferLength == cfg.BlockSize {
-		cfg.BufferLength += cfg.BlockSize
-	}
+	cfg.BufferLength = (cfg.PacketLength/cfg.BlockSize + 2) * cfg.BlockSize
 
 	return cfg
 }
@@ -255,7 +252,7 @@ func NewDemodulator(cfg *PacketConfig) (d Demodulator) {
 	d.slices = make([][]byte, d.Cfg.SymbolLength)
 	flat := make([]byte, d.Cfg.BufferLength-(d.Cfg.BufferLength%d.Cfg.SymbolLength))
 
-	symbolsPerBlock := d.Cfg.BlockSize / d.Cfg.SymbolLength
+	symbolsPerBlock := (d.Cfg.BlockSize + d.Cfg.PreambleLength) / d.Cfg.SymbolLength
 	for symbolOffset := range d.slices {
 		lower := symbolOffset * symbolsPerBlock
 		upper := (symbolOffset + 1) * symbolsPerBlock
@@ -284,7 +281,7 @@ func (d *Demodulator) Demodulate(input []byte) []Packet {
 	FIR9(d.IQ, d.Filtered[1:])
 	Discriminate(d.Filtered, d.Discriminated)
 	Quantize(d.Discriminated, d.Quantized[d.Cfg.BufferLength-d.Cfg.BlockSize:])
-	d.Pack(d.Quantized[:d.Cfg.BlockSize], d.slices)
+	d.Pack(d.Quantized, d.slices)
 	return d.Slice(d.Search())
 }
 
