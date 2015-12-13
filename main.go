@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/bemasher/rtldavis/protocol"
-	"github.com/jpoirier/gortlsdr"
 )
 
 type Hop struct {
@@ -108,7 +107,7 @@ func main() {
 	// Set the dwellTimer for one full rotation of the pattern + 1. Some channels
 	// may have enough frequency error that they won't receive until we've
 	// seen at least one message and set the frequency correction.
-	dwellTimer := time.After(53 * p.DwellTime)
+	dwellTimer := time.After(52 * p.DwellTime)
 	// We set missCount to 3 so that we immediately pick another random
 	// channel and wait on that channel instead of hopping like we missed one.
 	missCount := 3
@@ -128,7 +127,7 @@ func main() {
 			// until we receive a message. Otherwise, keep hopping.
 			if missCount >= 3 {
 				nextHop <- Hop{p.RandChannel(), p.ChannelIdx(), p.ChannelErr()}
-				dwellTimer = time.After(53 * p.DwellTime)
+				dwellTimer = time.After(52 * p.DwellTime)
 			} else {
 				nextHop <- Hop{p.NextChannel(), p.ChannelIdx(), p.ChannelErr()}
 			}
