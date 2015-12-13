@@ -52,8 +52,8 @@ type Parser struct {
 	hopIdx     int
 	hopPattern []int
 
-	currentErr int
-	channelErr map[int]int
+	currentFreqErr int
+	channelFreqErr map[int]int
 }
 
 func NewParser(symbolLength, id int) (p Parser) {
@@ -81,7 +81,7 @@ func NewParser(symbolLength, id int) (p Parser) {
 		37, 12, 20, 33, 4, 43, 28, 15, 35, 6, 40, 11, 23, 46, 18,
 	}
 
-	p.channelErr = make(map[int]int)
+	p.channelFreqErr = make(map[int]int)
 
 	p.ID = id
 	p.DwellTime = 2562500 * time.Microsecond
@@ -90,31 +90,40 @@ func NewParser(symbolLength, id int) (p Parser) {
 	return
 }
 
-func (p *Parser) channelFreq(hopIdx int) int {
-	return p.channels[p.hopPattern[hopIdx]]
+type Hop struct {
+	ChannelIdx  int
+	ChannelFreq int
+	FreqError   int
 }
 
-func (p *Parser) NextChannel() int {
-	p.hopIdx = (p.hopIdx + 1) % p.channelCount
-	return p.channelFreq(p.hopIdx)
+func (h Hop) String() string {
+	return fmt.Sprintf("{ChannelIdx:%2d ChannelFreq:%d FreqError:%d}",
+		h.ChannelIdx, h.ChannelFreq, h.FreqError,
+	)
 }
 
-func (p *Parser) RandChannel() int {
-	p.hopIdx = rand.Intn(p.channelCount)
-	return p.channelFreq(p.hopIdx)
-}
+func (p *Parser) hop() (h Hop) {
+	h.ChannelIdx = p.hopPattern[p.hopIdx]
+	h.ChannelFreq = p.channels[h.ChannelIdx]
 
-func (p *Parser) ChannelIdx() int {
-	return p.hopPattern[p.hopIdx]
-}
-
-func (p *Parser) ChannelErr() int {
-	if freq, exists := p.channelErr[p.hopPattern[p.hopIdx]]; !exists {
-		return p.currentErr
-	} else {
-		p.currentErr = freq
-		return freq
+	// If this channel has already been visited, use frequency error from last
+	// visit. Otherwise use frequency error from last channel.
+	if freqErr, exists := p.channelFreqErr[p.hopPattern[p.hopIdx]]; exists {
+		p.currentFreqErr = freqErr
 	}
+	h.FreqError = p.currentFreqErr
+
+	return h
+}
+
+func (p *Parser) NextHop() Hop {
+	p.hopIdx = (p.hopIdx + 1) % p.channelCount
+	return p.hop()
+}
+
+func (p *Parser) RandHop() Hop {
+	p.hopIdx = rand.Intn(p.channelCount)
+	return p.hop()
 }
 
 func (p *Parser) Parse(pkts []dsp.Packet) (msgs []Message) {
@@ -149,8 +158,8 @@ func (p *Parser) Parse(pkts []dsp.Packet) (msgs []Message) {
 
 		freqError := -int(9600 + (mean*float64(p.Cfg.SampleRate))/(2*math.Pi))
 
-		p.channelErr[p.hopPattern[p.hopIdx]] = p.currentErr + freqError
-		p.currentErr += freqError
+		p.channelFreqErr[p.hopPattern[p.hopIdx]] = p.currentFreqErr + freqError
+		p.currentFreqErr += freqError
 
 		msgs = append(msgs, NewMessage(pkt))
 	}

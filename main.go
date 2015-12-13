@@ -18,7 +18,6 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"math/rand"
@@ -29,16 +28,6 @@ import (
 	"github.com/bemasher/rtldavis/protocol"
 	"github.com/jpoirier/gortlsdr"
 )
-
-type Hop struct {
-	Frequency  int
-	ChannelIdx int
-	Error      int
-}
-
-func (h Hop) String() string {
-	return fmt.Sprintf("{%2d %d %d}", h.ChannelIdx, h.Frequency, h.Error)
-}
 
 func init() {
 	log.SetFlags(log.Lshortfile | log.Lmicroseconds)
@@ -56,9 +45,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	hop := Hop{p.RandChannel(), p.ChannelIdx(), p.ChannelErr()}
+	hop := p.RandHop()
 	log.Println(hop)
-	if err := dev.SetCenterFreq(hop.Frequency); err != nil {
+	if err := dev.SetCenterFreq(hop.ChannelFreq); err != nil {
 		log.Fatal(err)
 	}
 
@@ -82,11 +71,11 @@ func main() {
 
 	// Handle frequency hops concurrently since the callback will stall if we
 	// stop reading to hop.
-	nextHop := make(chan Hop, 1)
+	nextHop := make(chan protocol.Hop, 1)
 	go func() {
 		for hop := range nextHop {
 			log.Printf("Hop: %s\n", hop)
-			if err := dev.SetCenterFreq(hop.Frequency + hop.Error); err != nil {
+			if err := dev.SetCenterFreq(hop.ChannelFreq + hop.FreqError); err != nil {
 				log.Fatal(err)
 			}
 		}
@@ -127,10 +116,10 @@ func main() {
 			// and wait for a full pattern rotation before hopping again or
 			// until we receive a message. Otherwise, keep hopping.
 			if missCount >= 3 {
-				nextHop <- Hop{p.RandChannel(), p.ChannelIdx(), p.ChannelErr()}
+				nextHop <- p.NextHop()
 				dwellTimer = time.After(52 * p.DwellTime)
 			} else {
-				nextHop <- Hop{p.NextChannel(), p.ChannelIdx(), p.ChannelErr()}
+				nextHop <- p.RandHop()
 			}
 		default:
 			in.Read(block)
@@ -149,7 +138,7 @@ func main() {
 				missCount = 0
 				dwellTimer = time.After(p.DwellTime + p.DwellTime>>1)
 
-				nextHop <- Hop{p.NextChannel(), p.ChannelIdx(), p.ChannelErr()}
+				nextHop <- p.NextHop()
 			}
 		}
 	}
