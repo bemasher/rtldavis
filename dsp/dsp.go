@@ -48,19 +48,18 @@ func (l *ByteToCmplxLUT) Execute(in []byte, out []complex128) {
 func RotateFs4(in, out []complex128) {
 	for idx := 0; idx < len(out); idx += 4 {
 		inAt := in[idx:]
-		o0 := inAt[0]
+		i0 := inAt[0]
 		i1 := inAt[1]
 		i2 := inAt[2]
 		i3 := inAt[3]
 
-		o1 := complex(imag(i1), real(i1))
-		o2 := complex(-real(i2), -imag(i2))
+		o1 := complex(-imag(i1), real(i1))
 		o3 := complex(imag(i3), -real(i3))
 
 		outAt := out[idx:]
-		outAt[0] = o0
+		outAt[0] = i0
 		outAt[1] = o1
-		outAt[2] = o2
+		outAt[2] = -i2
 		outAt[3] = o3
 	}
 }
@@ -86,8 +85,15 @@ func FIR9(in, out []complex128) {
 }
 
 func Discriminate(in []complex128, out []float64) {
+	// We spend a lot of time in this function and for the sake of efficiency, this:
+	//     out[idx] = cmplx.Phase(in[idx] * cmplx.Conj(in[idx+1]))
+	// Is equivalent to this:
+	//     i := in[idx]
+	//     out[idx] = imag(i*cmplx.Conj(in[idx+1])) / (real(i)*real(i) + imag(i)*imag(i))
+	// Need to benchmark on an RPi or RPi2 but on my desktop this is nearly 5x faster.
 	for idx := range out {
-		out[idx] = cmplx.Phase(in[idx] * cmplx.Conj(in[idx+1]))
+		i := in[idx]
+		out[idx] = imag(i*cmplx.Conj(in[idx+1])) / (real(i)*real(i) + imag(i)*imag(i))
 	}
 }
 
@@ -122,7 +128,12 @@ func (d *Demodulator) Search() (indexes []int) {
 	return
 }
 
-func (d *Demodulator) Slice(indices []int) (pkts [][]byte) {
+type Packet struct {
+	Idx  int
+	Data []byte
+}
+
+func (d *Demodulator) Slice(indices []int) (pkts []Packet) {
 	// We will likely find multiple instances of the message so only keep
 	// track of unique instances.
 	seen := make(map[string]bool)
@@ -145,8 +156,10 @@ func (d *Demodulator) Slice(indices []int) (pkts [][]byte) {
 		pktStr := fmt.Sprintf("%02X", d.pkt)
 		if !seen[pktStr] {
 			seen[pktStr] = true
-			pkts = append(pkts, make([]byte, len(d.pkt)))
-			copy(pkts[len(pkts)-1], d.pkt)
+
+			pkt := Packet{qIdx, make([]byte, len(d.pkt))}
+			copy(pkt.Data, d.pkt)
+			pkts = append(pkts, pkt)
 		}
 	}
 
@@ -155,7 +168,6 @@ func (d *Demodulator) Slice(indices []int) (pkts [][]byte) {
 
 // PacketConfig specifies packet-specific radio configuration.
 type PacketConfig struct {
-	CenterFreq                     uint32
 	BitRate                        int
 	SymbolLength                   int
 	PreambleSymbols, PacketSymbols int
@@ -169,7 +181,7 @@ type PacketConfig struct {
 	BufferLength                 int
 }
 
-func NewPacketConfig(centerFreq uint32, bitRate, symbolLength, preambleSymbols, packetSymbols int, preamble string) PacketConfig {
+func NewPacketConfig(bitRate, symbolLength, preambleSymbols, packetSymbols int, preamble string) PacketConfig {
 	var cfg PacketConfig
 
 	cfg.BitRate = bitRate
@@ -190,23 +202,17 @@ func NewPacketConfig(centerFreq uint32, bitRate, symbolLength, preambleSymbols, 
 		}
 	}
 
-	cfg.CenterFreq = centerFreq
-
 	cfg.SampleRate = cfg.BitRate * cfg.SymbolLength
 
-	cfg.BlockSize = 2048
+	cfg.BlockSize = 512
 	cfg.BlockSize2 = cfg.BlockSize << 1
 
-	cfg.BufferLength = (cfg.PacketLength/cfg.BlockSize + 1) * cfg.BlockSize
-	if cfg.BufferLength == cfg.BlockSize {
-		cfg.BufferLength += cfg.BlockSize
-	}
+	cfg.BufferLength = (cfg.PacketLength/cfg.BlockSize + 2) * cfg.BlockSize
 
 	return cfg
 }
 
 func (cfg PacketConfig) Log() {
-	log.Println("CenterFreq:", cfg.CenterFreq)
 	log.Println("BitRate:", cfg.BitRate)
 	log.Println("SymbolLength:", cfg.SymbolLength)
 	log.Println("SampleRate:", cfg.SampleRate)
@@ -220,7 +226,7 @@ func (cfg PacketConfig) Log() {
 }
 
 type Demodulator struct {
-	Cfg PacketConfig
+	Cfg *PacketConfig
 
 	Raw           []byte
 	IQ            []complex128
@@ -232,6 +238,52 @@ type Demodulator struct {
 	pkt    []byte
 
 	lut ByteToCmplxLUT
+}
+
+func NewDemodulator(cfg *PacketConfig) (d Demodulator) {
+	d.Cfg = cfg
+
+	d.Raw = make([]byte, d.Cfg.BufferLength<<1)
+	d.IQ = make([]complex128, d.Cfg.BlockSize+9)
+	d.Filtered = make([]complex128, d.Cfg.BlockSize+1)
+	d.Discriminated = make([]float64, d.Cfg.BlockSize*2)
+	d.Quantized = make([]byte, d.Cfg.BufferLength)
+
+	d.slices = make([][]byte, d.Cfg.SymbolLength)
+	flat := make([]byte, d.Cfg.BufferLength-(d.Cfg.BufferLength%d.Cfg.SymbolLength))
+
+	symbolsPerBlock := (d.Cfg.BlockSize + d.Cfg.PreambleLength) / d.Cfg.SymbolLength
+	for symbolOffset := range d.slices {
+		lower := symbolOffset * symbolsPerBlock
+		upper := (symbolOffset + 1) * symbolsPerBlock
+		d.slices[symbolOffset] = flat[lower:upper]
+	}
+
+	d.pkt = make([]byte, (d.Cfg.PacketSymbols+7)>>3)
+
+	d.lut = NewByteToCmplxLUT()
+
+	return d
+}
+
+func (d *Demodulator) Demodulate(input []byte) []Packet {
+	copy(d.Raw, d.Raw[d.Cfg.BlockSize2:])
+	// Only need the last filter-length worth of samples.
+	// d.IQ is BlockSize + 9 for our case.
+	copy(d.IQ, d.IQ[d.Cfg.BlockSize:])
+	d.Filtered[0] = d.Filtered[len(d.Filtered)-1]
+	copy(d.Discriminated, d.Discriminated[d.Cfg.BlockSize:])
+	copy(d.Quantized, d.Quantized[d.Cfg.BlockSize:])
+
+	copy(d.Raw[d.Cfg.BufferLength<<1-d.Cfg.BlockSize2:], input)
+
+	d.lut.Execute(d.Raw[d.Cfg.BufferLength<<1-d.Cfg.BlockSize2:], d.IQ[9:])
+	RotateFs4(d.IQ[9:], d.IQ[9:])
+	FIR9(d.IQ, d.Filtered[1:])
+	Discriminate(d.Filtered, d.Discriminated[d.Cfg.BlockSize:])
+	Quantize(d.Discriminated[d.Cfg.BlockSize:], d.Quantized[d.Cfg.BufferLength-d.Cfg.BlockSize:])
+	d.Pack(d.Quantized, d.slices)
+	return d.Slice(d.Search())
 }
 
 func (d *Demodulator) Reset() {
@@ -250,48 +302,4 @@ func (d *Demodulator) Reset() {
 	for idx := range d.Quantized {
 		d.Quantized[idx] = 0
 	}
-}
-
-func NewDemodulator(cfg PacketConfig) (d Demodulator) {
-	d.Cfg = cfg
-
-	d.Raw = make([]byte, d.Cfg.BlockSize<<2)
-	d.IQ = make([]complex128, d.Cfg.BlockSize+9)
-	d.Filtered = make([]complex128, d.Cfg.BlockSize)
-	d.Discriminated = make([]float64, d.Cfg.BlockSize-1)
-	d.Quantized = make([]byte, d.Cfg.BlockSize<<1)
-
-	d.slices = make([][]byte, d.Cfg.SymbolLength)
-	flat := make([]byte, d.Cfg.BlockSize2-(d.Cfg.BlockSize%d.Cfg.SymbolLength))
-
-	symbolsPerBlock := d.Cfg.BlockSize / d.Cfg.SymbolLength
-	for symbolOffset := range d.slices {
-		lower := symbolOffset * symbolsPerBlock
-		upper := (symbolOffset + 1) * symbolsPerBlock
-		d.slices[symbolOffset] = flat[lower:upper]
-	}
-
-	d.pkt = make([]byte, (d.Cfg.PacketSymbols+7)>>3)
-
-	d.lut = NewByteToCmplxLUT()
-
-	return d
-}
-
-func (d *Demodulator) Demodulate(input []byte) [][]byte {
-	copy(d.Raw, d.Raw[d.Cfg.BlockSize<<1:])
-	// Only need the last filter-length worth of samples.
-	// d.IQ is BlockSize + 9 for our case.
-	copy(d.IQ, d.IQ[d.Cfg.BlockSize:])
-	copy(d.Quantized, d.Quantized[d.Cfg.BlockSize:])
-
-	copy(d.Raw[d.Cfg.BlockSize<<1:], input)
-
-	d.lut.Execute(d.Raw[d.Cfg.BlockSize<<1:], d.IQ[9:])
-	RotateFs4(d.IQ[9:], d.IQ[9:])
-	FIR9(d.IQ, d.Filtered)
-	Discriminate(d.Filtered, d.Discriminated)
-	Quantize(d.Discriminated, d.Quantized[d.Cfg.BlockSize:])
-	d.Pack(d.Quantized[:d.Cfg.BlockSize], d.slices)
-	return d.Slice(d.Search())
 }

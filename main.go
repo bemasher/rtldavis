@@ -18,36 +18,63 @@
 package main
 
 import (
+	"flag"
 	"io"
+	"io/ioutil"
 	"log"
+	"math/rand"
 	"os"
 	"os/signal"
+	"time"
 
 	"github.com/bemasher/rtldavis/protocol"
 	"github.com/jpoirier/gortlsdr"
 )
 
+var (
+	id      *int
+	verbose *bool
+
+	verboseLogger *log.Logger
+)
+
 func init() {
-	log.SetFlags(log.Lshortfile | log.Lmicroseconds)
+	log.SetFlags(log.Lmicroseconds)
+	rand.Seed(time.Now().UnixNano())
+
+	id = flag.Int("id", 0, "id of the station to listen for")
+	verbose = flag.Bool("v", false, "log extra information to /dev/stderr")
+
+	flag.Parse()
+
+	verboseLogger = log.New(ioutil.Discard, "", log.Lshortfile|log.Lmicroseconds)
+	if *verbose {
+		verboseLogger.SetOutput(os.Stderr)
+	}
 }
 
 func main() {
-	p := protocol.NewParser(14)
-	p.Cfg().Log()
+	p := protocol.NewParser(14, *id)
+	p.Cfg.Log()
 
-	fs := p.Cfg().SampleRate
-	fc := int(p.Cfg().CenterFreq)
+	fs := p.Cfg.SampleRate
 
 	dev, err := rtlsdr.Open(0)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	if err := dev.SetCenterFreq(fc); err != nil {
+	hop := p.RandHop()
+	verboseLogger.Println(hop)
+	if err := dev.SetCenterFreq(hop.ChannelFreq); err != nil {
 		log.Fatal(err)
 	}
 
 	if err := dev.SetSampleRate(fs); err != nil {
+		log.Fatal(err)
+	}
+
+	if err := dev.SetTunerGainMode(false); err != nil {
 		log.Fatal(err)
 	}
 
@@ -59,7 +86,19 @@ func main() {
 
 	go dev.ReadAsync(func(buf []byte) {
 		out.Write(buf)
-	}, nil, 1, 16384)
+	}, nil, 1, p.Cfg.BlockSize2)
+
+	// Handle frequency hops concurrently since the callback will stall if we
+	// stop reading to hop.
+	nextHop := make(chan protocol.Hop, 1)
+	go func() {
+		for hop := range nextHop {
+			verboseLogger.Printf("Hop: %s\n", hop)
+			if err := dev.SetCenterFreq(hop.ChannelFreq + hop.FreqError); err != nil {
+				log.Fatal(err)
+			}
+		}
+	}()
 
 	defer func() {
 		in.Close()
@@ -72,17 +111,66 @@ func main() {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, os.Kill)
 
-	block := make([]byte, p.Cfg().BlockSize2)
+	block := make([]byte, p.Cfg.BlockSize2)
+
+	// Set the dwellTimer for one full rotation of the pattern + 1. Some channels
+	// may have enough frequency error that they won't receive until we've
+	// seen at least one message and set the frequency correction.
+	dwellTimer := time.After(52 * p.DwellTime)
+	// We set missCount to 3 so that we immediately pick another random
+	// channel and wait on that channel instead of hopping like we missed one.
+	missCount := 3
 
 	for {
 		select {
 		case <-sig:
 			return
+		case <-dwellTimer:
+			// If the dwellTimer has expired one of two things has happened:
+			//     1: We've missed a message.
+			//     2: We've waited for sync and nothing has happened for a
+			//        full cycle of the pattern.
+
+			// Reset the timer and incrmeent the missed packet counter.
+			dwellTimer = time.After(p.DwellTime)
+			missCount++
+
+			if missCount >= 3 {
+				// We've missed three packets in a row, hop to a random
+				// channel and wait for a full hopping cycle.
+				nextHop <- p.RandHop()
+				dwellTimer = time.After(52 * p.DwellTime)
+			} else {
+				// We've missed fewer than three packets in a row, hop to the
+				// next channel in the pattern.
+				nextHop <- p.NextHop()
+			}
 		default:
 			in.Read(block)
 
+			recvPacket := false
 			for _, msg := range p.Parse(p.Demodulate(block)) {
+				if int(msg.ID) != *id {
+					continue
+				}
+
+				recvPacket = true
 				log.Printf("%02X\n", msg.Data)
+			}
+
+			if recvPacket {
+				// Reset the missed packet counter.
+				missCount = 0
+
+				// Set the dwell timer to 1.5 * dwell time. If this timer
+				// expires before we've received a packet then the missed
+				// packet hopping logic will reset the timer to exactly the
+				// dwell time and we then expect packets to arrive half-way
+				// through the timer.
+				dwellTimer = time.After(p.DwellTime + p.DwellTime>>1)
+
+				// Hop to the next channel.
+				nextHop <- p.NextHop()
 			}
 		}
 	}
