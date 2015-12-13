@@ -56,8 +56,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	ch := p.RandChannel()
-	if err := dev.SetCenterFreq(ch); err != nil {
+	hop := Hop{p.RandChannel(), p.ChannelIdx(), p.ChannelErr()}
+	log.Println(hop)
+	if err := dev.SetCenterFreq(hop.Frequency); err != nil {
 		log.Fatal(err)
 	}
 
@@ -67,13 +68,6 @@ func main() {
 
 	if err := dev.SetTunerGainMode(false); err != nil {
 		log.Fatal(err)
-	}
-
-	// Documentation on gortlsdr says this will fail with an error if previous
-	// ppm is same value as new. Don't fail on this, just print a message.
-	ppm := p.ChannelErr()
-	if err := dev.SetFreqCorrection(ppm); err != nil {
-		log.Println(err)
 	}
 
 	if err := dev.ResetBuffer(); err != nil {

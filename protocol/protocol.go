@@ -19,7 +19,6 @@ package protocol
 
 import (
 	"fmt"
-	"log"
 	"math"
 	"math/rand"
 	"time"
@@ -111,10 +110,8 @@ func (p *Parser) ChannelIdx() int {
 
 func (p *Parser) ChannelErr() int {
 	if freq, exists := p.channelErr[p.hopPattern[p.hopIdx]]; !exists {
-		log.Println("Using channel last error...")
 		return p.currentErr
 	} else {
-		log.Println("Using channel specific error...")
 		p.currentErr = freq
 		return freq
 	}
@@ -153,7 +150,7 @@ func (p *Parser) Parse(pkts []dsp.Packet) (msgs []Message) {
 		}
 		mean /= float64(len(tail))
 
-		freqError := int(9600 + (mean*float64(p.Cfg.SampleRate))/(2*math.Pi))
+		freqError := -int(9600 + (mean*float64(p.Cfg.SampleRate))/(2*math.Pi))
 
 		p.channelErr[p.hopPattern[p.hopIdx]] = p.currentErr + freqError
 		p.currentErr += freqError
