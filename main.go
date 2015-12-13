@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/bemasher/rtldavis/protocol"
+	"github.com/jpoirier/gortlsdr"
 )
 
 type Hop struct {
