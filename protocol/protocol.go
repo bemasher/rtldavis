@@ -107,7 +107,7 @@ func (p *Parser) hop() (h Hop) {
 	h.ChannelFreq = p.channels[h.ChannelIdx]
 
 	// If this channel has already been visited, use frequency error from last
-	// visit. Otherwise use frequency error from last channel.
+	// visit. Otherwise use frequency error from previous channel.
 	if freqErr, exists := p.channelFreqErr[p.hopPattern[p.hopIdx]]; exists {
 		p.currentFreqErr = freqErr
 	}
@@ -116,24 +116,30 @@ func (p *Parser) hop() (h Hop) {
 	return h
 }
 
+// Increment the pattern index and return the new channel's parameters.
 func (p *Parser) NextHop() Hop {
 	p.hopIdx = (p.hopIdx + 1) % p.channelCount
 	return p.hop()
 }
 
+// Randomize the pattern index and return the new channel's parameters.
 func (p *Parser) RandHop() Hop {
 	p.hopIdx = rand.Intn(p.channelCount)
 	return p.hop()
 }
 
+// Given a list of packets, check them for validity and ignore duplicates,
+// return a list of parsed messages.
 func (p *Parser) Parse(pkts []dsp.Packet) (msgs []Message) {
 	seen := make(map[string]bool)
 
 	for _, pkt := range pkts {
+		// Bit order over-the-air is reversed.
 		for idx, b := range pkt.Data {
 			pkt.Data[idx] = SwapBitOrder(b)
 		}
 
+		// Keep track of duplicate packets.
 		s := string(pkt.Data)
 		if seen[s] {
 			continue
@@ -145,20 +151,26 @@ func (p *Parser) Parse(pkts []dsp.Packet) (msgs []Message) {
 			continue
 		}
 
-		var mean float64
-		symLen := p.Cfg.SymbolLength
-
-		lower := pkt.Idx + 8*symLen
-		upper := pkt.Idx + 24*symLen
+		// Look at the packet's tail to determine frequency error between
+		// transmitter and receiver.
+		lower := pkt.Idx + 8*p.Cfg.SymbolLength
+		upper := pkt.Idx + 24*p.Cfg.SymbolLength
 		tail := p.Demodulator.Discriminated[lower:upper]
+
+		var mean float64
 		for _, sample := range tail {
 			mean += sample
 		}
 		mean /= float64(len(tail))
 
+		// The tail is a series of zero symbols. The driminator's output is
+		// measured in radians.
 		freqError := -int(9600 + (mean*float64(p.Cfg.SampleRate))/(2*math.Pi))
 
+		// Set the current channel's frequency error.
 		p.channelFreqErr[p.hopPattern[p.hopIdx]] = p.currentFreqErr + freqError
+
+		// Update the current frequency error.
 		p.currentFreqErr += freqError
 
 		msgs = append(msgs, NewMessage(pkt))

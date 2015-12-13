@@ -107,19 +107,24 @@ func main() {
 		case <-sig:
 			return
 		case <-dwellTimer:
-			// If the dwellTimer has expired, we've missed a message. Reset
-			// the timer and increment missCounter.
+			// If the dwellTimer has expired one of two things has happened:
+			//     1: We've missed a message.
+			//     2: We've waited for sync and nothing has happened for a
+			//        full cycle of the pattern.
+
+			// Reset the timer and incrmeent the missed packet counter.
 			dwellTimer = time.After(p.DwellTime)
 			missCount++
 
-			// If we've missed three messages in a row, hop to random channels
-			// and wait for a full pattern rotation before hopping again or
-			// until we receive a message. Otherwise, keep hopping.
 			if missCount >= 3 {
-				nextHop <- p.NextHop()
+				// We've missed three packets in a row, hop to a random
+				// channel and wait for a full hopping cycle.
+				nextHop <- p.RandHop()
 				dwellTimer = time.After(52 * p.DwellTime)
 			} else {
-				nextHop <- p.RandHop()
+				// We've missed fewer than three packets in a row, hop to the
+				// next channel in the pattern.
+				nextHop <- p.NextHop()
 			}
 		default:
 			in.Read(block)
@@ -131,13 +136,17 @@ func main() {
 			}
 
 			if recvPacket {
-				// Reset the miss counter when we've received a message. Set
-				// the dwellTimer to 1.5 * p.DwellTime. Any missed messages
-				// after this timer expires should occur in the time between
-				// hops. Finally, hop to the next chanel.
+				// Reset the missed packet counter.
 				missCount = 0
+
+				// Set the dwell timer to 1.5 * dwell time. If this timer
+				// expires before we've received a packet then the missed
+				// packet hopping logic will reset the timer to exactly the
+				// dwell time and we then expect packets to arrive half-way
+				// through the timer.
 				dwellTimer = time.After(p.DwellTime + p.DwellTime>>1)
 
+				// Hop to the next channel.
 				nextHop <- p.NextHop()
 			}
 		}
