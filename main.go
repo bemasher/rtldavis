@@ -31,14 +31,20 @@ import (
 	"github.com/jpoirier/gortlsdr"
 )
 
-var id = flag.Int("id", 0, "id of the station to listen for")
+var (
+	id      *int
+	verbose *bool
 
-var verbose = flag.Bool("verbose", false, "log extra information to /dev/stderr")
-var verboseLogger *log.Logger
+	verboseLogger *log.Logger
+)
 
 func init() {
 	log.SetFlags(log.Lmicroseconds)
 	rand.Seed(time.Now().UnixNano())
+
+	id = flag.Int("id", 0, "id of the station to listen for")
+	verbose = flag.Bool("v", false, "log extra information to /dev/stderr")
+
 	flag.Parse()
 
 	verboseLogger = log.New(ioutil.Discard, "", log.Lshortfile|log.Lmicroseconds)
