@@ -280,8 +280,8 @@ func (d *Demodulator) Demodulate(input []byte) []Packet {
 	d.lut.Execute(d.Raw[d.Cfg.BufferLength<<1-d.Cfg.BlockSize2:], d.IQ[9:])
 	RotateFs4(d.IQ[9:], d.IQ[9:])
 	FIR9(d.IQ, d.Filtered[1:])
-	Discriminate(d.Filtered, d.Discriminated)
-	Quantize(d.Discriminated, d.Quantized[d.Cfg.BufferLength-d.Cfg.BlockSize:])
+	Discriminate(d.Filtered, d.Discriminated[d.Cfg.BlockSize:])
+	Quantize(d.Discriminated[d.Cfg.BlockSize:], d.Quantized[d.Cfg.BufferLength-d.Cfg.BlockSize:])
 	d.Pack(d.Quantized, d.slices)
 	return d.Slice(d.Search())
 }
