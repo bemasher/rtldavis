@@ -141,9 +141,6 @@ func (p *Parser) Parse(pkts []dsp.Packet) (msgs []Message) {
 
 		lower := pkt.Idx + 8*symLen
 		upper := pkt.Idx + 24*symLen
-		if upper > p.Cfg.BlockSize {
-			upper = p.Cfg.BlockSize - 1
-		}
 		tail := p.Demodulator.Discriminated[lower:upper]
 		for _, sample := range tail {
 			mean += sample
