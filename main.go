@@ -18,7 +18,9 @@
 package main
 
 import (
+	"flag"
 	"io"
+	"io/ioutil"
 	"log"
 	"math/rand"
 	"os"
@@ -29,13 +31,24 @@ import (
 	"github.com/jpoirier/gortlsdr"
 )
 
+var id = flag.Int("id", 0, "id of the station to listen for")
+
+var verbose = flag.Bool("verbose", false, "log extra information to /dev/stderr")
+var verboseLogger *log.Logger
+
 func init() {
-	log.SetFlags(log.Lshortfile | log.Lmicroseconds)
+	log.SetFlags(log.Lmicroseconds)
 	rand.Seed(time.Now().UnixNano())
+	flag.Parse()
+
+	verboseLogger = log.New(ioutil.Discard, "", log.Lshortfile|log.Lmicroseconds)
+	if *verbose {
+		verboseLogger.SetOutput(os.Stderr)
+	}
 }
 
 func main() {
-	p := protocol.NewParser(14, 0)
+	p := protocol.NewParser(14, *id)
 	p.Cfg.Log()
 
 	fs := p.Cfg.SampleRate
@@ -46,7 +59,7 @@ func main() {
 	}
 
 	hop := p.RandHop()
-	log.Println(hop)
+	verboseLogger.Println(hop)
 	if err := dev.SetCenterFreq(hop.ChannelFreq); err != nil {
 		log.Fatal(err)
 	}
@@ -74,7 +87,7 @@ func main() {
 	nextHop := make(chan protocol.Hop, 1)
 	go func() {
 		for hop := range nextHop {
-			log.Printf("Hop: %s\n", hop)
+			verboseLogger.Printf("Hop: %s\n", hop)
 			if err := dev.SetCenterFreq(hop.ChannelFreq + hop.FreqError); err != nil {
 				log.Fatal(err)
 			}
@@ -131,6 +144,10 @@ func main() {
 
 			recvPacket := false
 			for _, msg := range p.Parse(p.Demodulate(block)) {
+				if int(msg.ID) != *id {
+					continue
+				}
+
 				recvPacket = true
 				log.Printf("%02X\n", msg.Data)
 			}
