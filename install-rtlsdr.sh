@@ -6,8 +6,8 @@ if [ ! -d "$HOME/librtlsdr/build" ]; then
 	cd librtlsdr
 	mkdir build
 	cd build
-	cmake -DCMAKE_INSTALL_PREFIX:PATH=$HOME/librtlsdr/build ../
+	cmake ../
 	make
 	make install
-	ldconfig
+	sudo ldconfig
 fi
