@@ -182,11 +182,13 @@ func (p *Parser) Parse(pkts []dsp.Packet) (msgs []Message) {
 type Message struct {
 	dsp.Packet
 
-	ID     byte
+	ID            byte
+	BatteryStatus byte
+
 	Sensor Sensor
 
 	WindSpeed     byte
-	WindDirection byte
+	WindDirection float64
 }
 
 func NewMessage(pkt dsp.Packet) (m Message) {
@@ -194,44 +196,80 @@ func NewMessage(pkt dsp.Packet) (m Message) {
 	m.Data = make([]byte, len(pkt.Data)-2)
 	copy(m.Data, pkt.Data[2:])
 
-	m.ID = m.Data[0] & 0xF
-	m.Sensor = Sensor(m.Data[0] >> 4)
+	m.ID = m.Data[0] & 0x7
+	m.BatteryStatus = (m.Data[0] >> 3) & 1
+
 	m.WindSpeed = m.Data[1]
-	m.WindDirection = m.Data[2]
+	m.WindDirection = float64(m.Data[2]) / 255 * 360
+
+	m.Sensor = NewSensor(m.Data[0]>>4, m.Data[3:5])
+
 	return m
 }
 
 func (m Message) String() string {
-	return fmt.Sprintf("{ID:%d Sensor:%s WindSpeed:%d WindDir:%d}", m.ID, m.Sensor, m.WindSpeed, m.WindDirection)
+	return fmt.Sprintf("{ID:%d Battery:%d WindSpeed:%2d WindDir:%3.1f %s Raw:%02X}",
+		m.ID, m.BatteryStatus, m.WindSpeed, m.WindDirection, m.Sensor, m.Data,
+	)
 }
 
-type Sensor byte
+type Sensor struct {
+	Type  byte
+	Raw   [2]uint16
+	Value float64
+}
 
 const (
-	UVIndex        Sensor = 4
-	SolarRadiation Sensor = 6
-	Light          Sensor = 7
-	Temperature    Sensor = 8
-	Humidity       Sensor = 0x0A
-	Rain           Sensor = 0x0E
+	UVIndex        = 0x04
+	SolarRadiation = 0x06
+	Light          = 0x07
+	Temperature    = 0x08
+	Humidity       = 0x0A
+	Rain           = 0x0E
 )
 
-func (s Sensor) String() string {
-	switch s {
+func NewSensor(typ byte, raw []byte) (s Sensor) {
+	s.Type = typ
+	for idx, b := range raw {
+		s.Raw[idx] = uint16(b)
+	}
+
+	switch s.Type {
 	case UVIndex:
-		return "UV Index"
+		s.Value = float64((s.Raw[0] << 4) | (s.Raw[1] >> 4))
+		s.Value = (s.Value - 4) / 200.0
 	case SolarRadiation:
-		return "Solar Radiation"
+		s.Value = float64((s.Raw[0] << 4) | (s.Raw[1] >> 4))
+		s.Value = (s.Value - 4) / 2.27
 	case Light:
-		return "Light"
+		s.Value = float64((s.Raw[0] << 4) | (s.Raw[1] >> 4))
 	case Temperature:
-		return "Temperature"
+		s.Value = float64(int16(s.Raw[0]<<8+s.Raw[1])>>4) / 10.0
 	case Humidity:
-		return "Humidity"
+		s.Value = float64((s.Raw[1]>>4)<<8+s.Raw[0]) / 10.0
 	case Rain:
-		return "Rain"
+		s.Value = float64(s.Raw[0])
+	}
+
+	return s
+}
+
+func (s Sensor) String() string {
+	switch s.Type {
+	case UVIndex:
+		return fmt.Sprintf("UVIndex:%0.1f", s.Value)
+	case SolarRadiation:
+		return fmt.Sprintf("SolarRadiation:%0.1f", s.Value)
+	case Light:
+		return fmt.Sprintf("Light:%0.1f", s.Value)
+	case Temperature:
+		return fmt.Sprintf("Temperature:%0.1f", s.Value)
+	case Humidity:
+		return fmt.Sprintf("Humidity:%0.1f", s.Value)
+	case Rain:
+		return fmt.Sprintf("Rain:%0.0f", s.Value)
 	default:
-		return fmt.Sprintf("Unknown(0x%0X)", byte(s))
+		return fmt.Sprintf("Unknown(0x%X):0x%02X", s.Type, s.Raw[:])
 	}
 }
 
