@@ -105,8 +105,8 @@ func Quantize(input []float64, output []byte) {
 	return
 }
 
-func (d *Demodulator) Pack(input []byte, slices [][]byte) {
-	for symbolOffset, slice := range slices {
+func (d *Demodulator) Pack(input []byte) {
+	for symbolOffset, slice := range d.slices {
 		for symbolIdx := range slice {
 			slice[symbolIdx] = input[symbolIdx*d.Cfg.SymbolLength+symbolOffset]
 		}
@@ -117,9 +117,10 @@ func (d *Demodulator) Pack(input []byte, slices [][]byte) {
 
 func (d *Demodulator) Search() (indexes []int) {
 	preambleLength := len(d.Cfg.Preamble)
+	searchLength := len(d.slices[0]) - preambleLength
 	for symbolOffset, slice := range d.slices {
-		for symbolIdx := range slice[:len(slice)-preambleLength] {
-			if bytes.Equal(d.Cfg.PreambleBytes, slice[symbolIdx:][:preambleLength]) {
+		for symbolIdx := range slice[:searchLength] {
+			if bytes.Equal(d.Cfg.PreambleBytes, slice[symbolIdx:]) {
 				indexes = append(indexes, symbolIdx*d.Cfg.SymbolLength+symbolOffset)
 			}
 		}
@@ -282,7 +283,7 @@ func (d *Demodulator) Demodulate(input []byte) []Packet {
 	FIR9(d.IQ, d.Filtered[1:])
 	Discriminate(d.Filtered, d.Discriminated[d.Cfg.BlockSize:])
 	Quantize(d.Discriminated[d.Cfg.BlockSize:], d.Quantized[d.Cfg.BufferLength-d.Cfg.BlockSize:])
-	d.Pack(d.Quantized, d.slices)
+	d.Pack(d.Quantized)
 	return d.Slice(d.Search())
 }
 

@@ -8,6 +8,14 @@ import (
 	mrand "math/rand"
 )
 
+var cfg = NewPacketConfig(
+	19200,
+	14,
+	16,
+	79,
+	"1100101110001001",
+)
+
 func TestRotateFs4(t *testing.T) {
 	mrand.Seed(time.Now().UnixNano())
 
@@ -98,14 +106,31 @@ func BenchmarkQuantize(b *testing.B) {
 	}
 }
 
+func BenchmarkPack(b *testing.B) {
+	d := NewDemodulator(&cfg)
+
+	b.SetBytes(512)
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		d.Pack(d.Quantized)
+	}
+}
+
+func BenchmarkSearch(b *testing.B) {
+	d := NewDemodulator(&cfg)
+
+	b.SetBytes(512)
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		d.Search()
+	}
+}
+
 func BenchmarkDemodulator(b *testing.B) {
-	cfg := NewPacketConfig(
-		19200,
-		14,
-		16,
-		79,
-		"1100101110001001",
-	)
 	d := NewDemodulator(&cfg)
 
 	block := make([]byte, d.Cfg.BlockSize2)
