@@ -8,6 +8,6 @@ if [ ! -d "$HOME/librtlsdr/build" ]; then
 	cd build
 	cmake ../
 	make
-	make install
+	sudo make install
 	sudo ldconfig
 fi
