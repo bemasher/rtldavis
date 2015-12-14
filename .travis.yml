@@ -8,4 +8,5 @@ install:
   - sudo apt-get install -qq libusb-1.0-0-dev
   - sudo git clone https://github.com/steve-m/librtlsdr
   - cd librtlsdr
-  - cmake . && make && sudo make install
+  - mkdir build && cd build
+  - cmake ../ && make && sudo make install
