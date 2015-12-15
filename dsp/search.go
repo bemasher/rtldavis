@@ -4,7 +4,7 @@
 
 package dsp
 
-import "strings"
+import "bytes"
 
 // stringFinder efficiently finds strings in a source text. It's implemented
 // using the Boyer-Moore string search algorithm:
@@ -13,7 +13,7 @@ import "strings"
 // document uses 1-based indexing)
 type stringFinder struct {
 	// pattern is the string that we are searching for in the text.
-	pattern string
+	pattern []byte
 
 	// badCharSkip[b] contains the distance between the last byte of pattern
 	// and the rightmost occurrence of b in pattern. If b is not in pattern,
@@ -47,7 +47,7 @@ type stringFinder struct {
 	goodSuffixSkip []int
 }
 
-func makeStringFinder(pattern string) *stringFinder {
+func makeBytesFinder(pattern []byte) *stringFinder {
 	f := &stringFinder{
 		pattern:        pattern,
 		goodSuffixSkip: make([]int, len(pattern)),
@@ -72,7 +72,7 @@ func makeStringFinder(pattern string) *stringFinder {
 	// pattern.
 	lastPrefix := last
 	for i := last; i >= 0; i-- {
-		if strings.HasPrefix(pattern, pattern[i+1:]) {
+		if bytes.HasPrefix(pattern, pattern[i+1:]) {
 			lastPrefix = i + 1
 		}
 		// lastPrefix is the shift, and (last-i) is len(suffix).
@@ -90,7 +90,7 @@ func makeStringFinder(pattern string) *stringFinder {
 	return f
 }
 
-func longestCommonSuffix(a, b string) (i int) {
+func longestCommonSuffix(a, b []byte) (i int) {
 	for ; i < len(a) && i < len(b); i++ {
 		if a[len(a)-1-i] != b[len(b)-1-i] {
 			break
@@ -101,7 +101,7 @@ func longestCommonSuffix(a, b string) (i int) {
 
 // next returns the index in text of the first occurrence of the pattern. If
 // the pattern is not found, it returns -1.
-func (f *stringFinder) next(text string) int {
+func (f *stringFinder) next(text []byte) int {
 	i := len(f.pattern) - 1
 	for i < len(text) {
 		// Compare backwards from the end until the first unmatching character.

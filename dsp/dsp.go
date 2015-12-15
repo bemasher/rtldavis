@@ -114,12 +114,17 @@ func (d *Demodulator) Pack(input []byte) {
 	return
 }
 
-func (d *Demodulator) Search(finder *stringFinder) (indexes []int) {
+func (d *Demodulator) Search() (indexes []int) {
 	for symbolOffset, slice := range d.slices {
-		for idx := 0; idx != -1; {
-			idx = finder.next(string(slice[idx:]))
+		offset := 0
+		idx := 0
+		for {
+			idx = d.Cfg.PreambleFinder.next(slice[offset:])
 			if idx != -1 {
-				indexes = append(indexes, idx*d.Cfg.SymbolLength+symbolOffset)
+				indexes = append(indexes, (offset+idx)*d.Cfg.SymbolLength+symbolOffset)
+				offset += idx + 1
+			} else {
+				break
 			}
 		}
 	}
@@ -202,7 +207,7 @@ func NewPacketConfig(bitRate, symbolLength, preambleSymbols, packetSymbols int, 
 		}
 	}
 
-	cfg.PreambleFinder = makeStringFinder(cfg.Preamble)
+	cfg.PreambleFinder = makeBytesFinder(cfg.PreambleBytes)
 
 	cfg.SampleRate = cfg.BitRate * cfg.SymbolLength
 
@@ -285,7 +290,7 @@ func (d *Demodulator) Demodulate(input []byte) []Packet {
 	Discriminate(d.Filtered, d.Discriminated[d.Cfg.BlockSize:])
 	Quantize(d.Discriminated[d.Cfg.BlockSize:], d.Quantized[d.Cfg.BufferLength-d.Cfg.BlockSize:])
 	d.Pack(d.Quantized)
-	return d.Slice(d.Search(d.Cfg.PreambleFinder))
+	return d.Slice(d.Search())
 }
 
 func (d *Demodulator) Reset() {
