@@ -18,7 +18,6 @@
 package dsp
 
 import (
-	"bytes"
 	"fmt"
 	"log"
 	"math"
@@ -116,16 +115,21 @@ func (d *Demodulator) Pack(input []byte) {
 }
 
 func (d *Demodulator) Search() (indexes []int) {
-	preambleLength := len(d.Cfg.Preamble)
 	for symbolOffset, slice := range d.slices {
-		for symbolIdx := range slice[:len(slice)-preambleLength] {
-			if bytes.Equal(d.Cfg.PreambleBytes, slice[symbolIdx:][:preambleLength]) {
-				indexes = append(indexes, symbolIdx*d.Cfg.SymbolLength+symbolOffset)
+		offset := 0
+		idx := 0
+		for {
+			idx = d.Cfg.PreambleFinder.next(slice[offset:])
+			if idx != -1 {
+				indexes = append(indexes, (offset+idx)*d.Cfg.SymbolLength+symbolOffset)
+				offset += idx + 1
+			} else {
+				break
 			}
 		}
 	}
 
-	return
+	return indexes
 }
 
 type Packet struct {
@@ -172,8 +176,9 @@ type PacketConfig struct {
 	SymbolLength                   int
 	PreambleSymbols, PacketSymbols int
 
-	Preamble      string
-	PreambleBytes []byte
+	Preamble       string
+	PreambleBytes  []byte
+	PreambleFinder *stringFinder
 
 	SampleRate                   int
 	BlockSize, BlockSize2        int
@@ -201,6 +206,8 @@ func NewPacketConfig(bitRate, symbolLength, preambleSymbols, packetSymbols int, 
 			cfg.PreambleBytes[idx] = 1
 		}
 	}
+
+	cfg.PreambleFinder = makeBytesFinder(cfg.PreambleBytes)
 
 	cfg.SampleRate = cfg.BitRate * cfg.SymbolLength
 
