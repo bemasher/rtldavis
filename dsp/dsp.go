@@ -117,10 +117,9 @@ func (d *Demodulator) Pack(input []byte) {
 
 func (d *Demodulator) Search() (indexes []int) {
 	preambleLength := len(d.Cfg.Preamble)
-	searchLength := len(d.slices[0]) - preambleLength
 	for symbolOffset, slice := range d.slices {
-		for symbolIdx := range slice[:searchLength] {
-			if bytes.Equal(d.Cfg.PreambleBytes, slice[symbolIdx:]) {
+		for symbolIdx := range slice[:len(slice)-preambleLength] {
+			if bytes.Equal(d.Cfg.PreambleBytes, slice[symbolIdx:][:preambleLength]) {
 				indexes = append(indexes, symbolIdx*d.Cfg.SymbolLength+symbolOffset)
 			}
 		}
