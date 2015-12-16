@@ -178,7 +178,7 @@ type PacketConfig struct {
 
 	Preamble       string
 	PreambleBytes  []byte
-	PreambleFinder *stringFinder
+	PreambleFinder *byteFinder
 
 	SampleRate                   int
 	BlockSize, BlockSize2        int
@@ -207,7 +207,7 @@ func NewPacketConfig(bitRate, symbolLength, preambleSymbols, packetSymbols int, 
 		}
 	}
 
-	cfg.PreambleFinder = makeBytesFinder(cfg.PreambleBytes)
+	cfg.PreambleFinder = makeByteFinder(cfg.PreambleBytes)
 
 	cfg.SampleRate = cfg.BitRate * cfg.SymbolLength
 

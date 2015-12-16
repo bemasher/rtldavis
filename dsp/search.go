@@ -11,7 +11,7 @@ import "bytes"
 // http://en.wikipedia.org/wiki/Boyer-Moore_string_search_algorithm
 // http://www.cs.utexas.edu/~moore/publications/fstrpos.pdf (note: this aged
 // document uses 1-based indexing)
-type stringFinder struct {
+type byteFinder struct {
 	// pattern is the string that we are searching for in the text.
 	pattern []byte
 
@@ -47,8 +47,8 @@ type stringFinder struct {
 	goodSuffixSkip []int
 }
 
-func makeBytesFinder(pattern []byte) *stringFinder {
-	f := &stringFinder{
+func makeByteFinder(pattern []byte) *byteFinder {
+	f := &byteFinder{
 		pattern:        pattern,
 		goodSuffixSkip: make([]int, len(pattern)),
 	}
@@ -101,7 +101,7 @@ func longestCommonSuffix(a, b []byte) (i int) {
 
 // next returns the index in text of the first occurrence of the pattern. If
 // the pattern is not found, it returns -1.
-func (f *stringFinder) next(text []byte) int {
+func (f *byteFinder) next(text []byte) int {
 	i := len(f.pattern) - 1
 	for i < len(text) {
 		// Compare backwards from the end until the first unmatching character.
