@@ -185,7 +185,7 @@ type Message struct {
 	ID            byte
 	BatteryStatus byte
 
-	Sensor Sensor
+	Sensor fmt.Stringer
 
 	WindSpeed     byte
 	WindDirection float64
@@ -200,7 +200,12 @@ func NewMessage(pkt dsp.Packet) (m Message) {
 	m.BatteryStatus = (m.Data[0] >> 3) & 1
 
 	m.WindSpeed = m.Data[1]
-	m.WindDirection = float64(m.Data[2]) / 255 * 360
+
+	if m.Data[2] == 0x00 {
+		m.WindDirection = math.NaN()
+	} else {
+		m.WindDirection = float64(m.Data[2]) / 255 * 360
+	}
 
 	m.Sensor = NewSensor(m.Data[0]>>4, m.Data[3:5])
 
@@ -220,12 +225,9 @@ type Sensor struct {
 }
 
 const (
-	UVIndex        = 0x04
-	SolarRadiation = 0x06
-	Light          = 0x07
-	Temperature    = 0x08
-	Humidity       = 0x0A
-	Rain           = 0x0E
+	Temperature = 0x08
+	Humidity    = 0x0A
+	Rain        = 0x0E
 )
 
 func NewSensor(typ byte, raw []byte) (s Sensor) {
@@ -235,18 +237,13 @@ func NewSensor(typ byte, raw []byte) (s Sensor) {
 	}
 
 	switch s.Type {
-	case UVIndex:
-		s.Value = float64((s.Raw[0] << 4) | (s.Raw[1] >> 4))
-		s.Value = (s.Value - 4) / 200.0
-	case SolarRadiation:
-		s.Value = float64((s.Raw[0] << 4) | (s.Raw[1] >> 4))
-		s.Value = (s.Value - 4) / 2.27
-	case Light:
-		s.Value = float64((s.Raw[0] << 4) | (s.Raw[1] >> 4))
 	case Temperature:
+		if s.Raw[0] == 0xFF {
+			s.Value = math.NaN()
+		}
 		s.Value = float64(int16(s.Raw[0]<<8+s.Raw[1])>>4) / 10.0
 	case Humidity:
-		s.Value = float64((s.Raw[1]>>4)<<8+s.Raw[0]) / 10.0
+		s.Value = float64(s.Raw[0]-1) / 2.0
 	case Rain:
 		s.Value = float64(s.Raw[0])
 	}
@@ -256,12 +253,6 @@ func NewSensor(typ byte, raw []byte) (s Sensor) {
 
 func (s Sensor) String() string {
 	switch s.Type {
-	case UVIndex:
-		return fmt.Sprintf("UVIndex:%0.1f", s.Value)
-	case SolarRadiation:
-		return fmt.Sprintf("SolarRadiation:%0.1f", s.Value)
-	case Light:
-		return fmt.Sprintf("Light:%0.1f", s.Value)
 	case Temperature:
 		return fmt.Sprintf("Temperature:%0.1f", s.Value)
 	case Humidity:
@@ -269,7 +260,7 @@ func (s Sensor) String() string {
 	case Rain:
 		return fmt.Sprintf("Rain:%0.0f", s.Value)
 	default:
-		return fmt.Sprintf("Unknown(0x%X):0x%02X", s.Type, s.Raw[:])
+		return fmt.Sprintf("UnknownSensor:0x%X", s.Type)
 	}
 }
 

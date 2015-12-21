@@ -24,3 +24,7 @@ _testmain.go
 *.prof
 
 data
+*.py
+*.bin
+*.log
+*.out
