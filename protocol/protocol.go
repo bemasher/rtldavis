@@ -23,7 +23,7 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/bemasher/rtlamr/crc"
+	"github.com/bemasher/rtldavis/crc"
 	"github.com/bemasher/rtldavis/dsp"
 )
 

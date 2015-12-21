@@ -1,5 +1,4 @@
 # rtldavis
-An rtl-sdr receiver for Davis Instruments weather stations.
 
 ### Purpose
 This project aims to implement a receiver for Davis Instruments wireless weather stations by making use of inexpensive rtl-sdr dongles.
@@ -9,7 +8,7 @@ This project aims to implement a receiver for Davis Instruments wireless weather
 
 ### Requirements
  * GoLang >=1.5 (Go build environment setup guide: http://golang.org/doc/code.html)
- * rtl-sdr [github.com/steve-m/librtlsdr](https://github.com/steve-m/librtlsdr)
+ * rtl-sdr: [github.com/steve-m/librtlsdr](https://github.com/steve-m/librtlsdr)
 
 ### Building
 The following instructions assume that you have already built and installed the rtl-sdr tools and library above. Please see build instructions provided here: [http://sdr.osmocom.org/trac/wiki/rtl-sdr#Buildingthesoftware](http://sdr.osmocom.org/trac/wiki/rtl-sdr#Buildingthesoftware)
