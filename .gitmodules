@@ -1,0 +1,3 @@
+[submodule "vendor/github.com/jpoirier/gortlsdr"]
+	path = vendor/github.com/jpoirier/gortlsdr
+	url = https://github.com/jpoirier/gortlsdr
