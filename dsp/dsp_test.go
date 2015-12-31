@@ -5,6 +5,7 @@ import (
 	"time"
 
 	crand "crypto/rand"
+	"math/cmplx"
 	mrand "math/rand"
 )
 
@@ -72,6 +73,35 @@ func BenchmarkFIR9(b *testing.B) {
 	}
 }
 
+func discriminate(in []complex128, out []float64) {
+	for idx := range out {
+		i := in[idx]
+		out[idx] = imag(i*cmplx.Conj(in[idx+1])) / (real(i)*real(i) + imag(i)*imag(i))
+	}
+}
+
+func TestDiscriminate(t *testing.T) {
+	input := make([]complex128, 65)
+	output := make([]float64, 64)
+	expected := make([]float64, 64)
+
+	for idx := range input {
+		input[idx] = complex(mrand.Float64(), mrand.Float64())
+	}
+
+	discriminate(input, expected)
+	Discriminate(input, output)
+
+	for idx := range output {
+		if output[idx] != expected[idx] {
+			t.Fail()
+		}
+	}
+
+	t.Logf("%+0.6f\n", output[:8])
+	t.Logf("%+0.6f\n", expected[:8])
+}
+
 func BenchmarkDiscriminate(b *testing.B) {
 	input := make([]complex128, 513)
 	output := make([]float64, 512)
@@ -85,7 +115,7 @@ func BenchmarkDiscriminate(b *testing.B) {
 	b.ResetTimer()
 
 	for n := 0; n < b.N; n++ {
-		Discriminate(input, output)
+		discriminate(input, output)
 	}
 }
 

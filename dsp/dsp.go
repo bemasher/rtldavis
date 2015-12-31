@@ -90,7 +90,7 @@ func Discriminate(in []complex128, out []float64) {
 		n := in[idx]
 		np := in[idx+1]
 
-		out[idx] = (real(n)*imag(np) - imag(n)*real(np)) / (real(n)*real(n) + imag(n)*imag(n))
+		out[idx] = (imag(n)*real(np) - real(n)*imag(np)) / (real(n)*real(n) + imag(n)*imag(n))
 	}
 }
 
