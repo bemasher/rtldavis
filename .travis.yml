@@ -4,6 +4,9 @@ go:
 
 sudo: required
 
+env:
+- GO15VENDOREXPERIMENT=1
+
 cache:
   apt: true
   directories:
