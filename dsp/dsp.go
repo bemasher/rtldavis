@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"math/cmplx"
 )
 
 type ByteToCmplxLUT [256]float64
@@ -87,12 +86,11 @@ func Discriminate(in []complex128, out []float64) {
 	// We spend a lot of time in this function and for the sake of efficiency, this:
 	//     out[idx] = cmplx.Phase(in[idx] * cmplx.Conj(in[idx+1]))
 	// Is equivalent to this:
-	//     i := in[idx]
-	//     out[idx] = imag(i*cmplx.Conj(in[idx+1])) / (real(i)*real(i) + imag(i)*imag(i))
-	// Need to benchmark on an RPi or RPi2 but on my desktop this is nearly 5x faster.
 	for idx := range out {
-		i := in[idx]
-		out[idx] = imag(i*cmplx.Conj(in[idx+1])) / (real(i)*real(i) + imag(i)*imag(i))
+		n := in[idx]
+		np := in[idx+1]
+
+		out[idx] = (real(n)*imag(np) - imag(n)*real(np)) / (real(n)*real(n) + imag(n)*imag(n))
 	}
 }
 
