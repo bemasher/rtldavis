@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"log"
 	"math"
+
+	"github.com/bemasher/rtldavis/dsp/dft"
 )
 
 type ByteToCmplxLUT [256]float64
@@ -233,25 +235,25 @@ func (cfg PacketConfig) Log() {
 type Demodulator struct {
 	Cfg *PacketConfig
 
-	Raw           []byte
-	IQ            []complex128
-	Filtered      []complex128
-	Discriminated []float64
-	Quantized     []byte
+	Raw         []byte
+	IQ          []complex128
+	Filtered    []complex128
+	Demodulated []float64
+	Quantized   []byte
 
 	slices [][]byte
 	pkt    []byte
 
-	lut ByteToCmplxLUT
+	lut  ByteToCmplxLUT
+	sdft dft.SDFT
 }
 
 func NewDemodulator(cfg *PacketConfig) (d Demodulator) {
 	d.Cfg = cfg
 
 	d.Raw = make([]byte, d.Cfg.BufferLength<<1)
-	d.IQ = make([]complex128, d.Cfg.BlockSize+9)
-	d.Filtered = make([]complex128, d.Cfg.BlockSize+1)
-	d.Discriminated = make([]float64, d.Cfg.BlockSize*2)
+	d.IQ = make([]complex128, d.Cfg.BlockSize+14)
+	d.Demodulated = make([]float64, d.Cfg.BlockSize*2)
 	d.Quantized = make([]byte, d.Cfg.BufferLength)
 
 	d.slices = make([][]byte, d.Cfg.SymbolLength)
@@ -276,17 +278,14 @@ func (d *Demodulator) Demodulate(input []byte) []Packet {
 	// Only need the last filter-length worth of samples.
 	// d.IQ is BlockSize + 9 for our case.
 	copy(d.IQ, d.IQ[d.Cfg.BlockSize:])
-	d.Filtered[0] = d.Filtered[len(d.Filtered)-1]
-	copy(d.Discriminated, d.Discriminated[d.Cfg.BlockSize:])
+	copy(d.Demodulated, d.Demodulated[d.Cfg.BlockSize:])
 	copy(d.Quantized, d.Quantized[d.Cfg.BlockSize:])
 
 	copy(d.Raw[d.Cfg.BufferLength<<1-d.Cfg.BlockSize2:], input)
 
-	d.lut.Execute(d.Raw[d.Cfg.BufferLength<<1-d.Cfg.BlockSize2:], d.IQ[9:])
-	RotateFs4(d.IQ[9:], d.IQ[9:])
-	FIR9(d.IQ, d.Filtered[1:])
-	Discriminate(d.Filtered, d.Discriminated[d.Cfg.BlockSize:])
-	Quantize(d.Discriminated[d.Cfg.BlockSize:], d.Quantized[d.Cfg.BufferLength-d.Cfg.BlockSize:])
+	d.lut.Execute(d.Raw[d.Cfg.BufferLength<<1-d.Cfg.BlockSize2:], d.IQ[14:])
+	d.sdft.Demod(d.IQ, d.Demodulated)
+	Quantize(d.Demodulated[d.Cfg.BlockSize:], d.Quantized[d.Cfg.BufferLength-d.Cfg.BlockSize:])
 	d.Pack(d.Quantized)
 	return d.Slice(d.Search())
 }
@@ -301,8 +300,8 @@ func (d *Demodulator) Reset() {
 	for idx := range d.Filtered {
 		d.Filtered[idx] = 0
 	}
-	for idx := range d.Discriminated {
-		d.Discriminated[idx] = 0
+	for idx := range d.Demodulated {
+		d.Demodulated[idx] = 0
 	}
 	for idx := range d.Quantized {
 		d.Quantized[idx] = 0
