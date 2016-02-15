@@ -1,7 +1,5 @@
 package dft
 
-import "math"
-
 const N = 14
 
 const (
@@ -48,5 +46,5 @@ func (sdft *SDFT) Demod(in []complex128, out []float64) {
 }
 
 func MagDiff(i, j complex128) float64 {
-	return math.Sqrt(real(i)*real(i)+imag(i)*imag(i)) - math.Sqrt(real(j)*real(j)+imag(j)*imag(j))
+	return (real(i)*real(i) + imag(i)*imag(i)) - (real(j)*real(j) + imag(j)*imag(j))
 }
