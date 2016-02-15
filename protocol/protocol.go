@@ -19,7 +19,6 @@ package protocol
 
 import (
 	"fmt"
-	"math"
 	"math/rand"
 	"time"
 
@@ -151,21 +150,9 @@ func (p *Parser) Parse(pkts []dsp.Packet) (msgs []Message) {
 			continue
 		}
 
-		// Look at the packet's tail to determine frequency error between
-		// transmitter and receiver.
-		lower := pkt.Idx + 8*p.Cfg.SymbolLength
-		upper := pkt.Idx + 24*p.Cfg.SymbolLength
-		tail := p.Demodulator.Discriminated[lower:upper]
-
-		var mean float64
-		for _, sample := range tail {
-			mean += sample
-		}
-		mean /= float64(len(tail))
-
 		// The tail is a series of zero symbols. The driminator's output is
 		// measured in radians.
-		freqError := -int(9600 + (mean*float64(p.Cfg.SampleRate))/(2*math.Pi))
+		freqError := 0
 
 		// Set the current channel's frequency error.
 		p.channelFreqErr[p.hopPattern[p.hopIdx]] = p.currentFreqErr + freqError

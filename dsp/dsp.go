@@ -253,7 +253,7 @@ func NewDemodulator(cfg *PacketConfig) (d Demodulator) {
 
 	d.Raw = make([]byte, d.Cfg.BufferLength<<1)
 	d.IQ = make([]complex128, d.Cfg.BlockSize+14)
-	d.Demodulated = make([]float64, d.Cfg.BlockSize*2)
+	d.Demodulated = make([]float64, d.Cfg.BlockSize<<1)
 	d.Quantized = make([]byte, d.Cfg.BufferLength)
 
 	d.slices = make([][]byte, d.Cfg.SymbolLength)
@@ -284,7 +284,7 @@ func (d *Demodulator) Demodulate(input []byte) []Packet {
 	copy(d.Raw[d.Cfg.BufferLength<<1-d.Cfg.BlockSize2:], input)
 
 	d.lut.Execute(d.Raw[d.Cfg.BufferLength<<1-d.Cfg.BlockSize2:], d.IQ[14:])
-	d.sdft.Demod(d.IQ, d.Demodulated)
+	d.sdft.Demod(d.IQ, d.Demodulated[d.Cfg.BlockSize:])
 	Quantize(d.Demodulated[d.Cfg.BlockSize:], d.Quantized[d.Cfg.BufferLength-d.Cfg.BlockSize:])
 	d.Pack(d.Quantized)
 	return d.Slice(d.Search())
