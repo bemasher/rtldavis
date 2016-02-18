@@ -111,6 +111,12 @@ func main() {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, os.Kill)
 
+	outputFile, err := os.Create("captured.bin")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer outputFile.Close()
+
 	block := make([]byte, p.Cfg.BlockSize2)
 
 	// Set the dwellTimer for one full rotation of the pattern + 1. Some channels
@@ -150,12 +156,14 @@ func main() {
 
 			recvPacket := false
 			for _, msg := range p.Parse(p.Demodulate(block)) {
-				if int(msg.ID) != *id {
-					continue
-				}
+				// if int(msg.ID) != *id {
+				// 	continue
+				// }
+
+				outputFile.Write(p.Raw)
 
 				recvPacket = true
-				log.Printf("%02X\n", msg.Data)
+				log.Printf("%02X %d\n", msg.Data, msg.ID)
 			}
 
 			if recvPacket {
