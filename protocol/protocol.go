@@ -208,24 +208,33 @@ func (m Message) String() string {
 type Sensor byte
 
 const (
-	UVIndex        Sensor = 4
-	SolarRadiation Sensor = 6
-	Light          Sensor = 7
-	Temperature    Sensor = 8
-	Humidity       Sensor = 0x0A
-	Rain           Sensor = 0x0E
+	SuperCapVoltage Sensor = 2
+	UVIndex         Sensor = 4
+	RainRate        Sensor = 5
+	SolarRadiation  Sensor = 6
+	Light           Sensor = 7
+	Temperature     Sensor = 8
+	WindGustSpeed   Sensor = 9
+	Humidity        Sensor = 0xA
+	Rain            Sensor = 0xE
 )
 
 func (s Sensor) String() string {
 	switch s {
+	case SuperCapVoltage:
+		return "SuperCap Voltage"
 	case UVIndex:
 		return "UV Index"
+	case RainRate:
+		return "Rain Rate"
 	case SolarRadiation:
 		return "Solar Radiation"
 	case Light:
 		return "Light"
 	case Temperature:
 		return "Temperature"
+	case WindGustSpeed:
+		return "Wind Gust Speed"
 	case Humidity:
 		return "Humidity"
 	case Rain:
