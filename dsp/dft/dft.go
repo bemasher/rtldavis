@@ -22,27 +22,27 @@ const (
 )
 
 type SDFT struct {
-	delta    complex128
-	h10, h11 complex128
+	delta   complex128
+	h9, h10 complex128
 }
 
 func (sdft *SDFT) Demod(in []complex128, out []float64) {
+	h9 := -(sdft.h9 + sdft.delta) * C2
 	h10 := -(sdft.h10 + sdft.delta) * C3
-	h11 := -(sdft.h11 + sdft.delta) * C4
-	out[0] = MagDiff(h10, h11)
+	out[0] = MagDiff(h9, h10)
 
 	for idx := 1; idx < len(in)-N; idx++ {
 		delta := in[idx+N-1] - in[idx-1]
 
+		h9 = -(h9 + delta) * C2
 		h10 = -(h10 + delta) * C3
-		h11 = -(h11 + delta) * C4
 
-		out[idx] = MagDiff(h10, h11)
+		out[idx] = MagDiff(h9, h10)
 	}
 
 	sdft.delta = in[len(in)-1] - in[len(in)-N-1]
+	sdft.h9 = h9
 	sdft.h10 = h10
-	sdft.h11 = h11
 }
 
 func MagDiff(i, j complex128) float64 {
