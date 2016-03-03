@@ -106,7 +106,6 @@ type slidingDft struct {
 	h0, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13 complex128
 }
 
-<<<<<<< HEAD
 func newSlidingDft(n int) (sdft slidingDft) {
 	sdft.n = n
 	sdft.coeffs = make([]complex128, n)
@@ -172,7 +171,6 @@ func (sdft *slidingDft) ExecuteUnroll(in []complex128, out [][]complex128) {
 	for idx := 1; idx < len(in)-N+1; idx++ {
 		delta := in[idx+N-1] - in[idx-1]
 
-<<<<<<< HEAD
 		h0 = h0 + delta
 		h1 = (h1 + delta) * C1
 		h2 = (h2 + delta) * C2
